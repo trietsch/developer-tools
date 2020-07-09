@@ -1,0 +1,30 @@
+#!/usr/bin/env python3
+# pylint: disable=invalid-name
+""" parses a yaml and picks out a field using dpath """
+import sys
+import json
+import yaml
+from datetime import datetime
+
+class DateTimeEncoder(json.JSONEncoder):
+    def default(self, o):
+        if isinstance(o, datetime):
+            return o.isoformat()
+        return json.JSONEncoder.default(self, o)
+
+def usage():
+    """ usage"""
+    print("""Usage: k8-parse-yaml <filename> <dpath>""")
+
+def parse(yamlstream):
+    """ turn a yaml file into a json """
+    contents = yaml.load(yamlstream, Loader=yaml.FullLoader)
+    print(json.dumps(contents, indent=2, cls=DateTimeEncoder))
+
+
+if __name__ == '__main__':
+    if len(sys.argv) == 2:
+        with open(sys.argv[1], 'r') as _f:
+            parse(_f)
+    else:
+        parse(sys.stdin)
