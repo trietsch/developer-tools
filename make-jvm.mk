@@ -1,5 +1,7 @@
 # include file to be used by Streammachine makefiles in maven projects
 #
+# You can override variables and rules by writing the same names BELOW the
+# invocation of include ${STRM_DEV_TOOLBOX}/make-jvm.mk
 #
 SHELL := bash
 .PHONY: echo build
@@ -8,11 +10,7 @@ branch:=$(shell git rev-parse --abbrev-ref HEAD)
 sources:=$(shell find src -type f) pom.xml
 version:=$(shell xmllint --xpath "/*[local-name() = 'project']/*[local-name() = 'version']/text()" pom.xml)
 name:=$(shell xmllint --xpath "/*[local-name() = 'project']/*[local-name() = 'name']/text()" pom.xml)
-target:="target/${name}-${version}-jar-with-dependencies.jar"
-
-# You can override variables above by writing the same names BELOW the
-# invocation of include ${STRM_DEV_TOOLBOX}/make-jvm.mk
-
+target:=target/${name}-${version}-jar-with-dependencies.jar
 
 echo:
 	@echo "name = ${name}"
@@ -26,6 +24,7 @@ build: ${target}
 ${target}: ${sources}
 	rm -f target/*.jar && \
 	./mvnw package
+
 
 # Deploy skip required: we're building a Docker image, we're not pushing to artifactory here
 # JavaDoc skip required: because Dagger is stupid and doesn't play well with Maven Release
