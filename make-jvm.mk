@@ -9,11 +9,11 @@ SHELL := bash
 branch:=$(shell git rev-parse --abbrev-ref HEAD)
 sources:=$(shell find src -type f) pom.xml
 version:=$(shell xmllint --xpath "/*[local-name() = 'project']/*[local-name() = 'version']/text()" pom.xml)
-name:=$(shell xmllint --xpath "/*[local-name() = 'project']/*[local-name() = 'name']/text()" pom.xml)
-target:=target/${name}-${version}-jar-with-dependencies.jar
+artifactId:=$(shell xmllint --xpath "/*[local-name() = 'project']/*[local-name() = 'artifactId']/text()" pom.xml)
+target:=target/${artifactId}-${version}-jar-with-dependencies.jar
 
 echo:
-	@echo "name = ${name}"
+	@echo "artifactId = ${artifactId}"
 	@echo "version = ${version}"
 	@echo "target = ${target}"
 	@echo "branch = ${branch}"
