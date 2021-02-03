@@ -4,7 +4,7 @@
 # invocation of include ${STRM_DEV_TOOLBOX}/make-jvm.mk
 #
 SHELL := bash
-.PHONY: echo build
+.PHONY: echo build clean check-dockertag
 
 branch:=$(shell git rev-parse --abbrev-ref HEAD)
 sources:=$(shell find src -type f) pom.xml
@@ -20,6 +20,9 @@ echo:
 	@echo "dockertag = ${dockertag}"
 
 build: ${target}
+
+clean:
+	./mvnw clean
 
 ${target}: ${sources}
 	rm -f target/*.jar && \
@@ -39,14 +42,17 @@ release:
 	    echo "Ensure that you're working on master when doing a release."; \
 	fi
 
+check-dockertag:
+	@[ "${dockertag}" ] || ( echo ">> dockertag is not set"; exit 1 )
+
 # gcloud auth configure-docker eu.gcr.io
 #
-dockerbuild:
+dockerbuild: check-dockertag ${target}
 	docker build . -t ${dockertag} && \
 	docker push ${dockertag}
 
 
-dockerbuild-notest:
+dockerbuild-notest: check-dockertag
 	./mvnw package -DskipTests && \
 	docker build . -t ${dockertag} && \
 	docker push ${dockertag}
