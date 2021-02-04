@@ -1,0 +1,8 @@
+#!/bin/bash
+
+for ns in core customers
+do
+    printf "\nNAMESPACE $ns\n"
+    kubectl get pods --namespace=$ns -o=json | jq \
+        '.items[] | {name:.metadata.name,ns:.metadata.namespace,images:[.status.containerStatuses[].imageID]}'
+done
