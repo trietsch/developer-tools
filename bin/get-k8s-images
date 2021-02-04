@@ -1,8 +1,25 @@
 #!/bin/bash
+tmp=$(mktemp)
 
+cleanup() {
+    rm -f $tmp
+}
+
+trap cleanup EXIT
+
+cat <<EOF > $tmp
+    .items[] |
+    select(.metadata.name | startswith("telepresence") | not) |
+    {
+        ns:.metadata.namespace,
+        name:.metadata.name,
+        images: [
+            .status.containerStatuses[].imageID |
+                 ltrimstr("docker-pullable://") | ltrimstr("eu.gcr.io/stream-machine-development/")
+            ]
+    }
+EOF
 for ns in core customers
 do
-    printf "\nNAMESPACE $ns\n"
-    kubectl get pods --namespace=$ns -o=json | jq \
-        '.items[] | {name:.metadata.name,ns:.metadata.namespace,images:[.status.containerStatuses[].imageID]}'
+    kubectl get pods --namespace=$ns -o=json | jq -c -f $tmp
 done
