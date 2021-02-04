@@ -4,7 +4,6 @@ variables:
   IMAGE_NAME: "eu.gcr.io/${GCP_REGISTRY_PROJECT}/stream-machine/${APPLICATION_NAME}"
 
 .image:
-  stage: publish
   image: google/cloud-sdk:alpine
   variables:
     GIT_CHECKOUT: "false"
@@ -13,7 +12,7 @@ variables:
   dependencies:
     - build-and-test
 
-image-snapshot:
+.image-snapshot-template:
   extends: .image
   script:
     - gcloud builds submit app --project "${GCP_REGISTRY_PROJECT}" --tag "${IMAGE_NAME}:${CI_COMMIT_SHORT_SHA}" --gcs-log-dir "${CLOUD_BUILD_BUCKET}/logs" --gcs-source-staging-dir "${CLOUD_BUILD_BUCKET}/staging"
@@ -25,7 +24,7 @@ image-snapshot:
     variables:
       - $CI_COMMIT_MESSAGE =~ /.*prepare release.*/ || ($CI_BUILD_REF_NAME == "master" && $CI_COMMIT_MESSAGE =~ /.*maven-release-plugin.*/)
 
-image-release:
+.image-release-template:
   extends: .image
   script:
     - gcloud builds submit app --project "${GCP_REGISTRY_PROJECT}" --tag "${IMAGE_NAME}:${CI_COMMIT_SHORT_SHA}" --gcs-log-dir "${CLOUD_BUILD_BUCKET}/logs" --gcs-source-staging-dir "${CLOUD_BUILD_BUCKET}/staging"

@@ -1,42 +1,16 @@
 # Open Gitlab Issue to make this possible: https://gitlab.com/gitlab-org/gitlab/-/issues/28987
 include: '//reference/gitlab-ci/maven/base.yml'
 
-.jar:
-  stage: publish
-  image: adoptopenjdk/openjdk14:debian-slim
-  variables:
-    GOOGLE_APPLICATION_CREDENTIALS: "/etc/gcloud-adc.json"
-  before_script:
-    - touch "$GOOGLE_APPLICATION_CREDENTIALS"
-    - cp "$ARTIFACT_REGISTRY_GOOGLE_SERVICE_ACCOUNT" "$GOOGLE_APPLICATION_CREDENTIALS"
-  cache:
-    paths:
-      - .m2/
-
-jar-snapshot:
-  extends: .jar
-  script:
-    - |
-      if [[ -z "${MAVEN_PROFILE}" ]]; then
-        ./mvnw $MAVEN_CLI_OPTS clean deploy -DskipTests
-      else
-        ./mvnw $MAVEN_CLI_OPTS clean deploy -DskipTests -P "${MAVEN_PROFILE}"
-      fi
+.jar-snapshot-template:
+  extends: .mvn
   only:
     - master
   except: # Do not run when preparing a release
     variables:
       - $CI_COMMIT_MESSAGE =~ /.*prepare release.*/ || ($CI_BUILD_REF_NAME == "master" && $CI_COMMIT_MESSAGE =~ /.*maven-release-plugin.*/)
 
-jar-release:
-  extends: .jar
-  script:
-    - |
-      if [[ -z "${MAVEN_PROFILE}" ]]; then
-        ./mvnw $MAVEN_CLI_OPTS clean deploy -DskipTests
-      else
-        ./mvnw $MAVEN_CLI_OPTS clean deploy -DskipTests -P "${MAVEN_PROFILE}"
-      fi
+.jar-release-template:
+  extends: .mvn
   only:
     - /^v(\d+\.)+(\*|\d+)$/
   except:
