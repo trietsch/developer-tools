@@ -1,4 +1,5 @@
-include: '/reference/gitlab-ci/maven/base.yml'
+# Open Gitlab Issue to make this possible: https://gitlab.com/gitlab-org/gitlab/-/issues/28987
+#include: '/reference/gitlab-ci/maven/base.yml'
 
 build-and-test:
   stage: build-and-test
