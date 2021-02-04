@@ -1,6 +1,8 @@
 build-and-test:
   stage: build-and-test
   image: adoptopenjdk/openjdk14:debian-slim
+  variables:
+    MAVEN_PROFILE: "banaantje"
   script:
     - |
       if [[ -z "${MAVEN_PROFILE}" ]]; then
