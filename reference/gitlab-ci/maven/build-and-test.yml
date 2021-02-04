@@ -5,6 +5,8 @@ include: '/reference/gitlab-ci/maven/base.yml'
   image: adoptopenjdk/openjdk14:debian-slim
   extends: .mvn
   artifacts:
+    paths:
+      - docker
     expire_in: 1 day
   only:
     - master
