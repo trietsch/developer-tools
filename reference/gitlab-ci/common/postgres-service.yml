@@ -1,0 +1,8 @@
+variables:
+  POSTGRES_DB: postgres
+  POSTGRES_USER: postgres
+  POSTGRES_PASSWORD: postgres
+
+.postgres-service:
+  services:
+    - postgres:latest

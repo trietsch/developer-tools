@@ -1,0 +1,37 @@
+variables:
+  GCP_REGISTRY_PROJECT: stream-machine-development
+  CLOUD_BUILD_BUCKET: gs://stream-machine-development-cloud-build
+  IMAGE_NAME: "eu.gcr.io/${GCP_REGISTRY_PROJECT}/stream-machine/${APPLICATION_NAME}"
+
+.release:
+  stage: release-image
+  image: google/cloud-sdk:alpine
+  variables:
+    GIT_CHECKOUT: "false"
+  before_script:
+    - gcloud auth --quiet activate-service-account --key-file="${CLOUD_BUILD_GOOGLE_SERVICE_ACCOUNT}" > /dev/null
+  dependencies:
+    - build-and-test
+
+image-snapshot:
+  extends: .release-image
+  script:
+    - gcloud builds submit app --project "${GCP_REGISTRY_PROJECT}" --tag "${IMAGE_NAME}:${CI_COMMIT_SHORT_SHA}" --gcs-log-dir "${CLOUD_BUILD_BUCKET}/logs" --gcs-source-staging-dir "${CLOUD_BUILD_BUCKET}/staging"
+    - gcloud container images add-tag "${IMAGE_NAME}:${CI_COMMIT_SHORT_SHA}" "${IMAGE_NAME}:latest" --project "${GCP_REGISTRY_PROJECT}"
+  only:
+    refs:
+      - master
+  except: # Do not run when preparing a release
+    variables:
+      - $CI_COMMIT_MESSAGE =~ /.*prepare release.*/ || ($CI_BUILD_REF_NAME == "master" && $CI_COMMIT_MESSAGE =~ /.*maven-release-plugin.*/)
+
+image-release:
+  extends: .release-image
+  script:
+    - gcloud builds submit app --project "${GCP_REGISTRY_PROJECT}" --tag "${IMAGE_NAME}:${CI_COMMIT_SHORT_SHA}" --gcs-log-dir "${CLOUD_BUILD_BUCKET}/logs" --gcs-source-staging-dir "${CLOUD_BUILD_BUCKET}/staging"
+    - gcloud container images add-tag "${IMAGE_NAME}:${CI_COMMIT_SHORT_SHA}" "${IMAGE_NAME}:${CI_COMMIT_TAG}" --project "${GCP_REGISTRY_PROJECT}"
+    - gcloud container images add-tag "${IMAGE_NAME}:${CI_COMMIT_SHORT_SHA}" "${IMAGE_NAME}:latest" --project "${GCP_REGISTRY_PROJECT}"
+  only:
+    - /^v(\d+\.)+(\*|\d+)$/
+  except:
+    - branches

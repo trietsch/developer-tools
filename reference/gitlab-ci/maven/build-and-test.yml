@@ -1,0 +1,21 @@
+include: '/reference/gitlab-ci/maven/base.yml'
+
+build-and-test:
+  stage: build-and-test
+  image: adoptopenjdk/openjdk14:debian-slim
+  extends: .mvn
+  script:
+    - |
+      if [[ -z "${MAVEN_PROFILE}" ]]; then
+        ./mvnw $MAVEN_CLI_OPTS clean verify -P "${MAVEN_PROFILE}
+      else
+        ./mvnw $MAVEN_CLI_OPTS clean verify
+      fi
+  artifacts:
+    expire_in: 1 day
+  only:
+    - master
+    - tags
+  except:
+    variables: # Don't run when maven release pushed a change to the master branch
+      - $CI_BUILD_REF_NAME == "master" && $CI_COMMIT_MESSAGE =~ /.*maven-release-plugin.*/

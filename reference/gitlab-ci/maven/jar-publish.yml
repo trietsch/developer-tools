@@ -1,0 +1,32 @@
+include: '/reference/gitlab-ci/maven/base.yml'
+
+jar-snapshot:
+  stage: release
+  extends: .mvn
+  script:
+    - |
+      if [[ -z "${MAVEN_PROFILE}" ]]; then
+        ./mvnw $MAVEN_CLI_OPTS clean deploy -DskipTests -P "${MAVEN_PROFILE}
+      else
+        ./mvnw $MAVEN_CLI_OPTS clean deploy -DskipTests
+      fi
+  only:
+    - master
+  except: # Do not run when preparing a release
+    variables:
+      - $CI_COMMIT_MESSAGE =~ /.*prepare release.*/ || ($CI_BUILD_REF_NAME == "master" && $CI_COMMIT_MESSAGE =~ /.*maven-release-plugin.*/)
+
+jar-release:
+  stage: release
+  extends: .mvn
+  script:
+    - |
+      if [[ -z "${MAVEN_PROFILE}" ]]; then
+        ./mvnw $MAVEN_CLI_OPTS clean deploy -DskipTests -P "${MAVEN_PROFILE}
+      else
+        ./mvnw $MAVEN_CLI_OPTS clean deploy -DskipTests
+      fi
+  only:
+    - /^v(\d+\.)+(\*|\d+)$/
+  except:
+    - branches
