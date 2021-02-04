@@ -1,13 +1,3 @@
 variables:
   MAVEN_OPTS: "-Dmaven.repo.local=.m2/repository"
   MAVEN_CLI_OPTS: "--batch-mode --errors --show-version -s .mvn/settings.xml"
-
-.mvn:
-  variables:
-    GOOGLE_APPLICATION_CREDENTIALS: "/etc/gcloud-adc.json"
-  before_script:
-    - touch "$GOOGLE_APPLICATION_CREDENTIALS"
-    - cp "$ARTIFACT_REGISTRY_GOOGLE_SERVICE_ACCOUNT" "$GOOGLE_APPLICATION_CREDENTIALS"
-  cache:
-    paths:
-      - .m2/
