@@ -2,6 +2,7 @@
 include: '//reference/gitlab-ci/maven/base.yml'
 
 .jar:
+  stage: publish
   image: adoptopenjdk/openjdk14:debian-slim
   variables:
     GOOGLE_APPLICATION_CREDENTIALS: "/etc/gcloud-adc.json"
@@ -13,7 +14,6 @@ include: '//reference/gitlab-ci/maven/base.yml'
       - .m2/
 
 jar-snapshot:
-  stage: release
   extends: .jar
   script:
     - |
@@ -29,7 +29,6 @@ jar-snapshot:
       - $CI_COMMIT_MESSAGE =~ /.*prepare release.*/ || ($CI_BUILD_REF_NAME == "master" && $CI_COMMIT_MESSAGE =~ /.*maven-release-plugin.*/)
 
 jar-release:
-  stage: release
   extends: .jar
   script:
     - |
