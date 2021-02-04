@@ -5,6 +5,7 @@ build-and-test:
     MAVEN_PROFILE: "banaantje"
   script:
     - |
+      echo "${MAVEN_PROFILE}"
       if [[ -z "${MAVEN_PROFILE}" ]]; then
         echo "Profile = ${MAVEN_PROFILE}"
       else
