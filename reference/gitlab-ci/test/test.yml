@@ -1,7 +1,6 @@
 build-and-test:
   stage: build-and-test
   image: adoptopenjdk/openjdk14:debian-slim
-  extends: .mvn
   script:
     - |
       if [[ -z "${MAVEN_PROFILE}" ]]; then
