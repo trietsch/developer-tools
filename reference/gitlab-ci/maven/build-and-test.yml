@@ -8,7 +8,7 @@ build-and-test:
   script:
     - |
       if [[ -z "${MAVEN_PROFILE}" ]]; then
-        ./mvnw $MAVEN_CLI_OPTS clean verify -P "${MAVEN_PROFILE}
+        ./mvnw $MAVEN_CLI_OPTS clean verify -P "${MAVEN_PROFILE}"
       else
         ./mvnw $MAVEN_CLI_OPTS clean verify
       fi
