@@ -25,7 +25,6 @@ clean:
 	./mvnw clean
 
 ${target}: ${sources}
-	rm -f target/*.jar && \
 	./mvnw package
 
 
