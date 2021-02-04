@@ -1,13 +1,12 @@
 build-and-test:
   stage: build-and-test
   image: adoptopenjdk/openjdk14:debian-slim
-  variables:
-    MAVEN_PROFILE: "banaantje"
+#  variables:
+#    MAVEN_PROFILE: "banaantje"
   script:
     - |
-      echo "${MAVEN_PROFILE}"
       if [[ -z "${MAVEN_PROFILE}" ]]; then
-        echo "Profile = ${MAVEN_PROFILE}"
-      else
         echo "No profile"
+      else
+        echo "Profile = ${MAVEN_PROFILE}"
       fi
