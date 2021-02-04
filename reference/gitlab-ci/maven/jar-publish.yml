@@ -7,9 +7,9 @@ jar-snapshot:
   script:
     - |
       if [[ -z "${MAVEN_PROFILE}" ]]; then
-        ./mvnw $MAVEN_CLI_OPTS clean deploy -DskipTests -P "${MAVEN_PROFILE}"
-      else
         ./mvnw $MAVEN_CLI_OPTS clean deploy -DskipTests
+      else
+        ./mvnw $MAVEN_CLI_OPTS clean deploy -DskipTests -P "${MAVEN_PROFILE}"
       fi
   only:
     - master
@@ -23,9 +23,9 @@ jar-release:
   script:
     - |
       if [[ -z "${MAVEN_PROFILE}" ]]; then
-        ./mvnw $MAVEN_CLI_OPTS clean deploy -DskipTests -P "${MAVEN_PROFILE}"
-      else
         ./mvnw $MAVEN_CLI_OPTS clean deploy -DskipTests
+      else
+        ./mvnw $MAVEN_CLI_OPTS clean deploy -DskipTests -P "${MAVEN_PROFILE}"
       fi
   only:
     - /^v(\d+\.)+(\*|\d+)$/
