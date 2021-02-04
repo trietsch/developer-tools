@@ -1,19 +1,9 @@
 # Open Gitlab Issue to make this possible: https://gitlab.com/gitlab-org/gitlab/-/issues/28987
-#include: '/reference/gitlab-ci/maven/base.yml'
-
-.jar:
-  variables:
-    GOOGLE_APPLICATION_CREDENTIALS: "/etc/gcloud-adc.json"
-  before_script:
-    - touch "$GOOGLE_APPLICATION_CREDENTIALS"
-    - cp "$ARTIFACT_REGISTRY_GOOGLE_SERVICE_ACCOUNT" "$GOOGLE_APPLICATION_CREDENTIALS"
-  cache:
-    paths:
-      - .m2/
+include: '//reference/gitlab-ci/maven/base.yml'
 
 jar-snapshot:
   stage: release
-  extends: .jar
+  extends: .mvn
   script:
     - |
       if [[ -z "${MAVEN_PROFILE}" ]]; then
@@ -29,7 +19,7 @@ jar-snapshot:
 
 jar-release:
   stage: release
-  extends: .jar
+  extends: .mvn
   script:
     - |
       if [[ -z "${MAVEN_PROFILE}" ]]; then
