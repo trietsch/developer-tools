@@ -1,13 +1,13 @@
 # include file to be used by Streammachine makefiles in maven projects
 #
 # You can override variables and rules by writing the same names BELOW the
-# invocation of include ${STRM_DEV_TOOLBOX}/make-jvm.mk
+# invocation of include ${STRM_DEV_TOOLBOX}/jvm.mk
 #
 SHELL := bash
 .PHONY: echo build clean check-dockertag
 
 branch:=$(shell git rev-parse --abbrev-ref HEAD)
-sources:=$(shell find src -type f) pom.xml
+sources:=$(shell if [ -d src ]; then find src -type f;fi) pom.xml
 version:=$(shell xmllint --xpath "/*[local-name() = 'project']/*[local-name() = 'version']/text()" pom.xml)
 artifactId:=$(shell xmllint --xpath "/*[local-name() = 'project']/*[local-name() = 'artifactId']/text()" pom.xml)
 target:=target/${artifactId}-${version}-jar-with-dependencies.jar
@@ -18,6 +18,10 @@ echo:
 	@echo "target = ${target}"
 	@echo "branch = ${branch}"
 	@echo "dockertag = ${dockertag}"
+
+echo-src:
+	@echo "sources = ${sources}"
+
 
 build: ${target}
 
