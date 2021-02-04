@@ -3,9 +3,9 @@ build-and-test:
   extends: .mvn
   image: jbergknoff/postgresql-client@sha256:45e175ebb700cfd46e23a610477c3576550055ef40c394e663623946a5eced39
   script:
+    - cat $GOOGLE_APPLICATION_CREDENTIALS
     - |
       env
-      cat $GOOGLE_APPLICATION_CREDENTIALS
       if [[ -z "${MAVEN_PROFILE}" ]]; then
         echo "No profile"
       else
