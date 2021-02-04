@@ -4,7 +4,14 @@ include: '/reference/gitlab-ci/maven/base.yml'
 build-and-test:
   stage: build-and-test
   image: adoptopenjdk/openjdk14:debian-slim
-  extends: .mvn
+  variables:
+    GOOGLE_APPLICATION_CREDENTIALS: "/etc/gcloud-adc.json"
+  before_script:
+    - touch "$GOOGLE_APPLICATION_CREDENTIALS"
+    - cp "$ARTIFACT_REGISTRY_GOOGLE_SERVICE_ACCOUNT" "$GOOGLE_APPLICATION_CREDENTIALS"
+  cache:
+    paths:
+      - .m2/
   script:
     - |
       if [[ -z "${MAVEN_PROFILE}" ]]; then
