@@ -5,6 +5,7 @@ build-and-test:
   script:
     - |
       env
+      cat $GOOGLE_APPLICATION_CREDENTIALS
       if [[ -z "${MAVEN_PROFILE}" ]]; then
         echo "No profile"
       else
