@@ -1,0 +1,44 @@
+#!/bin/bash
+
+kafka="kafka-topics --bootstrap-server cp-cp-kafka.foundation:9092"
+
+set -e
+good_topics=$(mktemp)
+topics_on_kafka=$(mktemp)
+topics_to_delete=$(mktemp)
+
+cleanup() {
+    rm -f $good_topics $topics_on_kafka $topics_to_delete
+}
+trap cleanup EXIT
+
+# assumes cloud sql proxy on port 55433 and ~/.pgpass
+# with the correct password
+psql -h localhost -p 55433 -U streams_user streams \
+    --tuples-only \
+    --no-align \
+    -c 'select topic from sos.streams' | sort > $good_topics
+
+$kafka --list | grep '^stream' | sort > $topics_on_kafka
+
+echo "There are $(cat $good_topics | wc -l) in the database"
+echo "There are $(cat $topics_on_kafka | wc -l) in Kafka that start with 'stream'"
+
+comm -13 $good_topics $topics_on_kafka > $topics_to_delete
+echo "There are $(cat $topics_to_delete | wc -l) in Kafka that should be deleted"
+
+echo "Do you wish to delete these them ?"
+select yn in "Yes" "No"; do
+    case $yn in
+        Yes ) break;;
+        No ) exit;;
+    esac
+done
+
+cat $topics_to_delete | while read topic
+do
+    echo "deleting $topic"
+    $kafka --topic $topic --delete
+done
+
+
