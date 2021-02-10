@@ -25,7 +25,13 @@ echo "There are $(cat $good_topics | wc -l) in the database"
 echo "There are $(cat $topics_on_kafka | wc -l) in Kafka that start with 'stream'"
 
 comm -13 $good_topics $topics_on_kafka > $topics_to_delete
-echo "There are $(cat $topics_to_delete | wc -l) in Kafka that should be deleted"
+
+n=$(cat $topics_to_delete | wc -l)
+echo "There are $n in Kafka that should be deleted"
+if [ $n -eq 0 ] ; then
+    echo "You have no leftover topics on Kafka. You're fine"
+    exit 0
+fi
 
 echo "Do you wish to delete these them ?"
 select yn in "Yes" "No"; do
@@ -35,6 +41,8 @@ select yn in "Yes" "No"; do
     esac
 done
 
+# Todo; we can maybe do this with on large regex, --delete
+# accepts a regex for --topic. We might run into maximum length issues.
 cat $topics_to_delete | while read topic
 do
     echo "deleting $topic"
