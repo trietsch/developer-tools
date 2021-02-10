@@ -1,4 +1,5 @@
 .gradle:
+  image: adoptopenjdk/openjdk14:debian-slim
   variables:
     GOOGLE_APPLICATION_CREDENTIALS: "/etc/gcloud-adc.json"
     GRADLE_USER_HOME: gradle_user_home

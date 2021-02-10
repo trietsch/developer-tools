@@ -2,7 +2,6 @@
 include: '/reference/gitlab-ci/maven/base.yml'
 
 .build-and-test-template:
-  image: adoptopenjdk/openjdk14:debian-slim
   extends: .mvn
   artifacts:
     paths:

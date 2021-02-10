@@ -2,7 +2,6 @@
 include: '/reference/gitlab-ci/gradle/base.yml'
 
 .build-and-test-template:
-  image: adoptopenjdk/openjdk14:debian-slim
   extends: .gradle
   artifacts:
     expire_in: 1 day
