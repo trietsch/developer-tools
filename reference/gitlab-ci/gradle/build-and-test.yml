@@ -4,11 +4,7 @@ include: '/reference/gitlab-ci/gradle/base.yml'
 .build-and-test-template:
   image: adoptopenjdk/openjdk14:debian-slim
   extends: .gradle
-  variables:
-    DOCKERFILES_DIRECTORY: build/docker
   artifacts:
-    paths:
-      - ${DOCKERFILES_DIRECTORY}/*
     expire_in: 1 day
   only:
     - master
