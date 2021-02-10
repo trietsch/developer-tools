@@ -2,12 +2,12 @@ variables:
   GCP_REGISTRY_PROJECT: stream-machine-development
   CLOUD_BUILD_BUCKET: gs://stream-machine-development-cloud-build
   IMAGE_NAME: "eu.gcr.io/${GCP_REGISTRY_PROJECT}/stream-machine/${APPLICATION_NAME}"
-  DOCKERFILES_DIRECTORY: docker
 
 .image:
   image: google/cloud-sdk:alpine
   variables:
     GIT_CHECKOUT: "false"
+    DOCKERFILES_DIRECTORY: docker
   before_script:
     - gcloud auth --quiet activate-service-account --key-file="${CLOUD_BUILD_GOOGLE_SERVICE_ACCOUNT}" > /dev/null
 
