@@ -1,0 +1,11 @@
+.gradle:
+  variables:
+    GOOGLE_APPLICATION_CREDENTIALS: "/etc/gcloud-adc.json"
+    GRADLE_USER_HOME: gradle_user_home
+  before_script:
+    - touch "$GOOGLE_APPLICATION_CREDENTIALS"
+    - cp "$ARTIFACT_REGISTRY_GOOGLE_SERVICE_ACCOUNT" "$GOOGLE_APPLICATION_CREDENTIALS"
+  cache:
+    paths:
+      - $GRADLE_USER_HOME
+      - .gradle/

@@ -1,0 +1,16 @@
+# Open Gitlab Issue to make this possible: https://gitlab.com/gitlab-org/gitlab/-/issues/28987
+include: '/reference/gitlab-ci/gradle/base.yml'
+
+.build-and-test-template:
+  image: adoptopenjdk/openjdk14:debian-slim
+  extends: .gradle
+  artifacts:
+    paths:
+      - build/docker/*
+    expire_in: 1 day
+  only:
+    - master
+    - tags
+#  except:
+#    variables: # Don't run when maven release pushed a change to the master branch
+#      - $CI_BUILD_REF_NAME == "master" && $CI_COMMIT_MESSAGE =~ /.*maven-release-plugin.*/
