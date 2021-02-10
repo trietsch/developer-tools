@@ -2,6 +2,7 @@ variables:
   GCP_REGISTRY_PROJECT: stream-machine-development
   CLOUD_BUILD_BUCKET: gs://stream-machine-development-cloud-build
   IMAGE_NAME: "eu.gcr.io/${GCP_REGISTRY_PROJECT}/stream-machine/${APPLICATION_NAME}"
+  DOCKERFILES_DIRECTORY: docker
 
 .image:
   image: google/cloud-sdk:alpine
@@ -13,7 +14,7 @@ variables:
 .image-snapshot-template:
   extends: .image
   script:
-    - gcloud builds submit docker --project "${GCP_REGISTRY_PROJECT}" --tag "${IMAGE_NAME}:${CI_COMMIT_SHORT_SHA}" --gcs-log-dir "${CLOUD_BUILD_BUCKET}/logs" --gcs-source-staging-dir "${CLOUD_BUILD_BUCKET}/staging"
+    - gcloud builds submit "${DOCKERFILES_DIRECTORY}" --project "${GCP_REGISTRY_PROJECT}" --tag "${IMAGE_NAME}:${CI_COMMIT_SHORT_SHA}" --gcs-log-dir "${CLOUD_BUILD_BUCKET}/logs" --gcs-source-staging-dir "${CLOUD_BUILD_BUCKET}/staging"
     - gcloud container images add-tag "${IMAGE_NAME}:${CI_COMMIT_SHORT_SHA}" "${IMAGE_NAME}:latest" --project "${GCP_REGISTRY_PROJECT}"
   only:
     refs:
@@ -25,7 +26,7 @@ variables:
 .image-release-template:
   extends: .image
   script:
-    - gcloud builds submit docker --project "${GCP_REGISTRY_PROJECT}" --tag "${IMAGE_NAME}:${CI_COMMIT_SHORT_SHA}" --gcs-log-dir "${CLOUD_BUILD_BUCKET}/logs" --gcs-source-staging-dir "${CLOUD_BUILD_BUCKET}/staging"
+    - gcloud builds submit "${DOCKERFILES_DIRECTORY}" --project "${GCP_REGISTRY_PROJECT}" --tag "${IMAGE_NAME}:${CI_COMMIT_SHORT_SHA}" --gcs-log-dir "${CLOUD_BUILD_BUCKET}/logs" --gcs-source-staging-dir "${CLOUD_BUILD_BUCKET}/staging"
     - gcloud container images add-tag "${IMAGE_NAME}:${CI_COMMIT_SHORT_SHA}" "${IMAGE_NAME}:${CI_COMMIT_TAG}" --project "${GCP_REGISTRY_PROJECT}"
     - gcloud container images add-tag "${IMAGE_NAME}:${CI_COMMIT_SHORT_SHA}" "${IMAGE_NAME}:latest" --project "${GCP_REGISTRY_PROJECT}"
   only:
