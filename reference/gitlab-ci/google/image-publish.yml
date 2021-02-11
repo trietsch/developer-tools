@@ -21,7 +21,7 @@ variables:
       - master
   except: # Do not run when preparing a release
     variables:
-      - $CI_COMMIT_MESSAGE =~ /.*prepare release.*/ || ($CI_BUILD_REF_NAME == "master" && $CI_COMMIT_MESSAGE =~ /.*maven-release-plugin.*/)
+      - $CI_COMMIT_MESSAGE =~ /.*prepare release.*/ || $CI_COMMIT_MESSAGE =~ /.*pre tag commit.*/ || ($CI_BUILD_REF_NAME == "master" && $CI_COMMIT_MESSAGE =~ /.*maven-release-plugin.*/) || ($CI_BUILD_REF_NAME == "master" && $CI_COMMIT_MESSAGE =~ /.*Gradle Release Plugin.*/)
 
 .image-release-template:
   extends: .image
