@@ -10,4 +10,4 @@ include: '/reference/gitlab-ci/gradle/base.yml'
     - tags
   except:
     variables: # Don't run when maven release pushed a change to the master branch
-      - $CI_BUILD_REF_NAME == "master" && $CI_COMMIT_MESSAGE =~ /.*maven-release-plugin.*/
+      - $CI_BUILD_REF_NAME == "master" && $CI_COMMIT_MESSAGE =~ /.*Gradle Release Plugin.*/
