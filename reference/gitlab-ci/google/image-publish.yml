@@ -7,7 +7,7 @@ variables:
   image: google/cloud-sdk:alpine
   variables:
     GIT_CHECKOUT: "false"
-    DOCKERFILES_DIRECTORY: docker
+    DOCKERFILES_DIRECTORY: build/docker
   before_script:
     - gcloud auth --quiet activate-service-account --key-file="${CLOUD_BUILD_GOOGLE_SERVICE_ACCOUNT}" > /dev/null
 
