@@ -1,0 +1,2 @@
+jq --arg q "'" -r '.credentials | "clientId=\(.clientId) clientSecret=\($q)\(.clientSecret)\($q)"'
+
