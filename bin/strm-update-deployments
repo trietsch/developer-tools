@@ -1,0 +1,24 @@
+#!/bin/bash
+
+set -e
+
+read -p "full k8s image ?" image
+read -p "app label to select deployments ?" app
+
+patch=$(echo '[{"op": "replace",
+    "path": "/spec/template/spec/containers/CN/image",
+    "value": "IMAGE"}]' | m4 -DCN=0 -DIMAGE="$image" | \
+    tr -d ' \r\n'
+)
+echo "patching via $patch"
+
+read -p "Continue ? " c
+if [ "$c" != "Y" -a "$c" != "y" ] ; then
+    echo "aborting"
+    exit 0
+fi
+kubectl get --namespace=customers deployments -l app=$app \
+        -o name | sed -e 's/.*\///g' | xargs -I {} kubectl patch deployment {} \
+        --type=json -p=$patch
+
+# vim:syntax=sh
