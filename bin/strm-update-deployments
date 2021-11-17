@@ -6,10 +6,10 @@ read -p "app label to select deployments ? " app
 deployments=$( kubectl get --namespace=customers deployments -l app=$app \
     -o name | sed -e 's/.*\///g' )
 
-read -p "Container nr ? " container
+read -p "Container nr inside deployment spec (default 0)? " container
 container=${container:-0}
 echo "Will modify container # $container in these deployments"
-kubectl get deployments.apps -l app=$app -o \
+kubectl get deployments.apps --namespace=customers -l app=$app -o \
     custom-columns=name:..metadata.name,"current image":.spec.template.spec.containers[$container].image
 echo
 echo
