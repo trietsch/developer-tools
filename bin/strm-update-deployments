@@ -30,7 +30,7 @@ fi
 
 
 echo $deployments | while read d ; do
-kubectl patch deployment $d --type=json -p=$patch
+kubectl patch deployment $d --namespace=customers --type=json -p=$patch
 done
 
 # vim:syntax=sh
