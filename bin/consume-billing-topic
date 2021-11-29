@@ -1,6 +1,6 @@
 #!/bin/bash
 
-kafka-console-consumer --bootstrap-server cp-cp-kafka.foundation:9092 \
+kafka-console-consumer --bootstrap-server internal-kafka-bootstrap.foundation:9092 \
     --topic billing --property print.key=true \
     --value-deserializer "org.apache.kafka.common.serialization.LongDeserializer"
 
