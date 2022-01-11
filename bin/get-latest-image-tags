@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+
+gcloud artifacts docker tags list europe-west4-docker.pkg.dev/stream-machine-development/docker --format json | \
+ jq 'group_by(.image)[] | {(.[0].image): ("v" + ([.[] | .tag | capture(".*\/tags\/v(?<version>[[:digit:]]+.[[:digit:]]+.[[:digit:]]+)").version] | max_by( split(".") | map(tonumber) )))}' | \
+ jq -s add
