@@ -1,0 +1,51 @@
+#!/usr/bin/env bash
+
+if [ "$1" == "--help" ]; then
+  echo "Usage: git-report <after> <before> [author]
+    after = 2020-08-30 23:59
+    before = 2020-10-30 23:59
+    author = your full configured user.name (uses this by default)
+
+    Output can be redirected. E.g. git-report \"2020-08-30 23:59\" \"2020-09-30 23:59\" \"Robin Trietsch\" | code -
+  "
+  exit 0
+fi
+
+if [ $# -lt 2 ]; then
+  echo 1>&2 "$0: not enough arguments"
+  exit 2
+elif [ $# -gt 3 ]; then
+  echo 1>&2 "$0: too many arguments"
+  exit 2
+fi
+
+git_author=$(git config --get user.name)
+
+after=$1
+before=$2
+author=${3:-$git_author}
+
+get_absolute_path() {
+  echo "$(cd "$(dirname "$1")" && pwd)/$(basename "$1")"
+}
+
+output=""
+header="======================================"
+newline=$'\n'
+
+repos=$(find . -name .git -type d -prune)
+
+for repo in $repos; do
+  # Omit .terraform git dirs
+  if [[ ! $directory == *".terraform"* ]]; then
+    directory=$(get_absolute_path "$repo")
+    git_log=$(git --git-dir "$directory" log --after="$after" --before="$before" --author="$author")
+
+    if [ -n "$git_log" ]; then
+      printf -v output '%s\n%s\n%s\n%s\n%s\n' "$output" "$header" "$directory" "$header" "$git_log"
+    fi
+  fi
+done
+
+echo "WBSO S&O work git logs for user $author"
+printf '%s\n' "$output"
