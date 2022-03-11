@@ -1,49 +1,69 @@
-#!/usr/bin/env bash
+#!/usr/bin/env python3
 
-if [ "$1" == "--help" ]; then
-  echo "Usage: git-report <after> <before> [author]
-    after = 2020-08-30 23:59
-    before = 2020-10-30 23:59
-    author = your full configured user.name (uses this by default)
+import os
+import sys
+from collections import defaultdict, OrderedDict
 
-    Output can be redirected. E.g. git-report \"2020-08-30 23:59\" \"2020-09-30 23:59\" \"Robin Trietsch\" | code -
-  "
-  exit 0
-fi
 
-if [ $# -lt 2 ]; then
-  echo 1>&2 "$0: not enough arguments"
-  exit 2
-elif [ $# -gt 3 ]; then
-  echo 1>&2 "$0: too many arguments"
-  exit 2
-fi
+def print_help():
+    print("""
+Usage: git-report <after> <before> [author]
+after = 2020-08-30 23:59
+before = 2020-10-30 23:59
+author = your full configured user.name (uses this by default)
 
-git_author=$(git config --get user.name)
+Output can be redirected. E.g. git-report \"2020-08-30 23:59\" \"2020-09-30 23:59\" \"Robin Trietsch\" | code -
+    """)
 
-after=$1
-before=$2
-author=${3:-$git_author}
 
-get_absolute_path() {
-  echo "$(cd "$(dirname "$1")" && pwd)/$(basename "$1")"
-}
+if len(sys.argv) < 1 or sys.argv[0] == "--help":
+    print_help()
+    exit(0)
 
-output=""
-header="======================================"
-newline=$'\n'
+after = sys.argv[1]
+before = sys.argv[2]
 
-repos=$(find . -name .git -type d ! -path '*/.terraform/*')
+try:
+    import git
+except ImportError:
+    print("GitPython is not installed, please run \"python -m pip install GitPython\"")
+    exit(1)
 
-for repo in $repos; do
-  # Omit .terraform git dirs
-  directory=$(get_absolute_path "$repo")
-  git_log=$(git --git-dir "$directory" log --after="$after" --before="$before" --author="$author")
+try:
+    username = sys.argv[3]
+except IndexError:
+    globalconfig = git.GitConfigParser([os.path.normpath(os.path.expanduser("~/.gitconfig"))], read_only=True)
+    username = globalconfig.get_value("user", "name")
 
-  if [ -n "$git_log" ]; then
-    printf -v output '%s\n%s\n%s\n%s\n%s\n' "$output" "$header" "$directory" "$header" "$git_log"
-  fi
-done
 
-echo "WBSO S&O work git logs for user $author"
-printf '%s\n' "$output"
+def scantree(path):
+    # Based on: https://stackoverflow.com/questions/33135038/how-do-i-use-os-scandir-to-return-direntry-objects-recursively-on-a-directory
+    for entry in os.scandir(path):
+        if (entry.name != "node_modules" and not entry.name.startswith(".")) or entry.name == ".git":
+            if entry.is_dir(follow_symlinks=False) and entry.name != ".git":
+                yield from scantree(entry.path)
+            elif entry.name == ".git":
+                yield entry
+
+
+days = defaultdict(list)
+
+for entry in scantree(os.path.normpath(os.path.expanduser("~/workspace/strmprivacy"))):
+    repo = git.Repo(entry.path)
+
+    try:
+        for commit in repo.iter_commits("master", author=username, before=before, after=after):
+            days[commit.authored_datetime.strftime("%Y-%m-%d")].append(commit)
+    except git.GitCommandError as e:
+        error = e.stderr.replace('\r', '').replace('\n', '').strip()
+        print(f"Error for repo {entry.path}: {error}", file=sys.stderr)
+
+# Print per day
+for day in sorted(days.keys()):
+    print("===============================")
+    print(day)
+    print("===============================")
+    commits = days[day]
+    for commit in commits:
+        print(f"{commit.summary} -- {commit.hexsha} -- ({commit.repo.working_dir})")
+    print()
