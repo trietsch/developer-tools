@@ -26,7 +26,7 @@ before = sys.argv[2]
 try:
     import git
 except ImportError:
-    print("GitPython is not installed, please run \"python -m pip install GitPython\"")
+    print("GitPython is not installed, please run \"python3 -m pip install GitPython\"")
     exit(1)
 
 try:
@@ -48,7 +48,7 @@ def scantree(path):
 
 days = defaultdict(list)
 
-for entry in scantree(os.path.normpath(os.path.expanduser("~/workspace/strmprivacy"))):
+for entry in scantree(os.getcwd()):
     repo = git.Repo(entry.path)
 
     try:
