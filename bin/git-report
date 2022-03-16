@@ -75,5 +75,6 @@ for day in sorted(days.keys()):
     print("===============================")
     commits = days[day]
     for commit in commits:
-        print(f"{commit.summary} -- {commit.hexsha} -- ({commit.repo.working_dir})")
+        if not commit.summary.startswith("chore(release)"):
+            print(f"{commit.summary} -- {commit.hexsha} -- ({commit.repo.working_dir})")
     print()
