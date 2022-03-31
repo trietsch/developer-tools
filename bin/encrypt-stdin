@@ -1,0 +1,20 @@
+#!/usr/bin/env bash
+
+# Usage:
+# echo "Some text you want to encrypt" | encrypt-stdin
+
+IN_FILE=$(mktemp /tmp/encryptstdin.XXXXXX)
+OUT_FILE=$(mktemp /tmp/encryptstdin.XXXXXX)
+
+echo "$(cat -)" > $IN_FILE
+
+pass=$(openssl rand -base64 30)
+openssl aes-256-cbc -e -a -in $IN_FILE -out $OUT_FILE -pass stdin <<< "$(echo $pass)"
+echo "Encrypted stdin contents:"
+cat $OUT_FILE
+
+echo
+echo "Password: $pass"
+
+rm $OUT_FILE
+rm $IN_FILE
