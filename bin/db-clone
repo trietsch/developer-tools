@@ -1,0 +1,57 @@
+#!/bin/bash
+
+Help()
+{
+     # Display Help
+     echo "Clone dev db to local db"
+     echo
+     echo "Usage: db-clone <docker_port> <sql_proxy_port> <db_name> <db_user_name>"
+}
+
+if [[ "$1" == "-h" || "$1" == "--help" ]]; then
+  Help
+  exit 0
+fi
+
+if [[ "$#" -ne 4 ]]; then
+  echo "Wrong amount of arguments given"
+  Help
+  exit 0
+fi
+
+docker_port=$1
+sql_proxy_port=$2
+db_name=$3
+user_name=$4
+date=$(date +%s%3)
+dump_name=dump_"$date"
+
+# dump the schema into a temp sql file
+echo "Database password"
+pg_dump --host=localhost --port="$sql_proxy_port" --dbname="$db_name" --username="$user_name" > "$dump_name".sql
+# remove local postgres docker
+docker rm --force local-postgres
+# start new docker postgres container
+docker run -d --name local-postgres -e POSTGRES_USER="$user_name" -e POSTGRES_PASSWORD=postgres -p 5432:"$docker_port" postgres:12
+# check readiness docker container
+echo "waiting for container readiness"
+until [ "$(docker inspect -f {{.State.Running}} local-postgres)" == "true" ]; do
+    sleep 0.1;
+done;
+
+sleep 5
+# create database
+echo "creating database"
+echo "-----------------"
+docker exec -i local-postgres psql -U "$user_name" -c "CREATE DATABASE \"$db_name\""
+echo "-----------------"
+# migrate sql schema to newly started postgres container
+echo "-----------------"
+echo "Migrating dev dump to local database"
+docker exec -i local-postgres psql -U "$user_name" -d "$db_name" < "$dump_name".sql
+# remove dump file
+echo "-----------------"
+echo "remove sql dump file"
+rm "$dump_name".sql
+echo "clone successful"
+
