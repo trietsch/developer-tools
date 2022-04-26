@@ -17,7 +17,7 @@ items = data.stdout.decode("utf-8").strip().split("\n")
 pods = []
 for i in items:
     name, owner, requests = i.strip().split("☆")
-    owner = json.loads(owner)
+    owner = json.loads(owner) if owner else "unknown"
     if len(owner) == 1:
         owner = f"{owner[0]['kind']}-{owner[0]['name']}"
     requests = json.loads(f"[{','.join(requests.split(' '))}]")
