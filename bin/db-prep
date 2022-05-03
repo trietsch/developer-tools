@@ -1,0 +1,78 @@
+#!/bin/bash
+
+docker_port=$1
+sql_proxy_port=$2
+db_name=$3
+user_name=$4
+cloud_sql_instance=$5
+db_password=$6
+docker_container_name="$db_name"-db
+
+Help()
+{
+     # Display Help
+     echo "Prepare local development environment"
+     echo
+     echo "Usage: dev-prep <docker_port> <sql_proxy_port> <db_name> <db_user_name> <cloud_instance> <db_password>"
+}
+
+PrintStdErr() {
+  echo "$1" 1>&2
+}
+
+# cleanup of background processes if error occurs
+Error()
+{
+  echo "Could not complete development preparations"
+  trap 'jobs -p | xargs kill' EXIT
+  exit 1
+}
+
+if [[ "$1" == "-h" || "$1" == "--help" ]]; then
+  Help
+  exit 0
+fi
+
+if [[ "$#" -ne 6 ]]; then
+  echo "Wrong amount of arguments given"
+  Help
+  exit 0
+fi
+
+if [[  "$(nc -z localhost "$sql_proxy_port"; echo $?)" == 0 ]]; then
+  echo "cloud sql proxy port is in use"
+  exit 1
+fi
+
+PrintStdErr "Starting sql proxy"
+# start cloud sql proxy as a background process
+cloud_sql_proxy -instances="$cloud_sql_instance"=tcp:"$sql_proxy_port" &
+
+PrintStdErr "Waiting for cloud sql proxy"
+until [ "$(nc -z localhost "$sql_proxy_port"; echo $?)" == 0 ]; do
+    sleep 1;
+done;
+
+PrintStdErr "Starting database cloning"
+# start cloning the development database to a local docker container
+if ! db-clone "$docker_container_name" "$docker_port" "$sql_proxy_port" "$db_name" "$user_name" "$db_password"; then
+  Error
+fi
+
+# check if there was a previous application.conf generated
+PrintStdErr "Shutting down cloud sql proxy"
+# shutdown all background tasks that where made in this process
+# (cloud sql proxy)
+trap 'jobs -p | xargs kill' EXIT
+echo "database {
+                 user {
+                   name = $user_name
+                   password = postgres
+                 }
+
+                 connection {
+                   host = localhost
+                   port = $docker_port
+                   databaseName = $db_name
+                 }
+      }"

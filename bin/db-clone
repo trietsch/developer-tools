@@ -1,11 +1,31 @@
 #!/bin/bash
 
+docker_container_name=$1
+docker_port=$2
+sql_proxy_port=$3
+db_name=$4
+user_name=$5
+db_password=$6
+date=$(date +%s%3)
+dump_name=dump_"$date"
+
 Help()
 {
      # Display Help
      echo "Clone dev db to local db"
      echo
-     echo "Usage: db-clone <docker_port> <sql_proxy_port> <db_name> <db_user_name>"
+     echo "Usage: db-clone <docker_container_name> <docker_port> <sql_proxy_port> <db_name> <db_user_name>"
+}
+
+PrintStdErr() {
+  echo "$1" 1>&2
+}
+
+Error()
+{
+  rm "$dump_name".sql
+  echo "Database could not be cloned successfully"
+  exit 1
 }
 
 if [[ "$1" == "-h" || "$1" == "--help" ]]; then
@@ -13,45 +33,46 @@ if [[ "$1" == "-h" || "$1" == "--help" ]]; then
   exit 0
 fi
 
-if [[ "$#" -ne 4 ]]; then
+if [[ "$#" -ne 6 ]]; then
   echo "Wrong amount of arguments given"
   Help
-  exit 0
+  exit 1
 fi
 
-docker_port=$1
-sql_proxy_port=$2
-db_name=$3
-user_name=$4
-date=$(date +%s%3)
-dump_name=dump_"$date"
+if [[  "$(nc -z localhost "$sql_proxy_port"; echo $?)" == 1 ]]; then
+  echo "cloud sql proxy is not available"
+  exit 1
+fi
 
 # dump the schema into a temp sql file
-echo "Database password"
-pg_dump --host=localhost --port="$sql_proxy_port" --dbname="$db_name" --username="$user_name" > "$dump_name".sql
+PrintStdErr "Creating database dump"
+if ! >&2 PGPASSWORD="$db_password" pg_dump --host=localhost --port="$sql_proxy_port" --dbname="$db_name" --username="$user_name" > "$dump_name".sql; then
+  Error
+fi
 # remove local postgres docker
-docker rm --force local-postgres
+if ! >&2 docker rm --force "$docker_container_name"; then
+  Error
+fi
 # start new docker postgres container
-docker run -d --name local-postgres -e POSTGRES_USER="$user_name" -e POSTGRES_PASSWORD=postgres -p 5432:"$docker_port" postgres:12
+if ! >&2 docker run -d --name "$docker_container_name" -e POSTGRES_USER="$user_name" -e POSTGRES_PASSWORD=postgres -p "$docker_port":5432 postgres:12; then
+  Error
+fi
 # check readiness docker container
-echo "waiting for container readiness"
-until [ "$(docker inspect -f {{.State.Running}} local-postgres)" == "true" ]; do
-    sleep 0.1;
-done;
+PrintStdErr "waiting for container readiness"
+until docker exec "$docker_container_name" pg_isready 1>&2 ; do sleep 2 ; done
 
-sleep 5
 # create database
-echo "creating database"
-echo "-----------------"
-docker exec -i local-postgres psql -U "$user_name" -c "CREATE DATABASE \"$db_name\""
-echo "-----------------"
+PrintStdErr "creating database"
+if ! docker exec -i -d "$docker_container_name" psql -P pager=off -U "$user_name" -c "CREATE DATABASE \"$db_name\""; then
+  Error
+fi
 # migrate sql schema to newly started postgres container
-echo "-----------------"
-echo "Migrating dev dump to local database"
-docker exec -i local-postgres psql -U "$user_name" -d "$db_name" < "$dump_name".sql
+PrintStdErr "Migrating dev dump to local database"
+if ! docker exec -i -d "$docker_container_name" psql -U "$user_name" -d "$db_name" < "$dump_name".sql; then
+  Error
+fi
 # remove dump file
-echo "-----------------"
-echo "remove sql dump file"
+PrintStdErr "remove sql dump file"
 rm "$dump_name".sql
-echo "clone successful"
+PrintStdErr "clone successful"
 
