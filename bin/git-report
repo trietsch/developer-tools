@@ -63,7 +63,7 @@ for entry in scantree(os.getcwd()):
 
     try:
         for commit in repo.iter_commits("master", author=username, before=before, after=after):
-            days[commit.authored_datetime.strftime("%Y-%m-%d")].append(commit)
+            days[commit.committed_datetime.strftime("%Y-%m-%d")].append(commit)
     except git.GitCommandError as e:
         error = e.stderr.replace('\r', '').replace('\n', '').strip()
         print(f"Error for repo {entry.path}: {error}", file=sys.stderr)
