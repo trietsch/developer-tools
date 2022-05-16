@@ -63,12 +63,12 @@ until docker exec "$docker_container_name" pg_isready 1>&2 ; do sleep 2 ; done
 
 # create database
 PrintStdErr "creating database"
-if ! docker exec -i -d "$docker_container_name" psql -P pager=off -U "$user_name" -c "CREATE DATABASE \"$db_name\""; then
+if ! >&2 docker exec -i "$docker_container_name" psql -P pager=off -U "$user_name" -c "CREATE DATABASE \"$db_name\""; then
   Error
 fi
 # migrate sql schema to newly started postgres container
 PrintStdErr "Migrating dev dump to local database"
-if ! docker exec -i -d "$docker_container_name" psql -U "$user_name" -d "$db_name" < "$dump_name".sql; then
+if ! >&2 docker exec -i "$docker_container_name" psql -U "$user_name" -d "$db_name" < "$dump_name".sql; then
   Error
 fi
 # remove dump file
