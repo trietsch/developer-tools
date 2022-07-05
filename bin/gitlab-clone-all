@@ -8,7 +8,7 @@ then
 
   To prevent leaking Personal Access Tokens in your shell history, try to use the 1Password CLI, e.g.:
 
-    gitlab-clone-all \"/Users/${USER}/workspace/strmprivacy\" \$(op read 'op://Private/GitLab API Key clone script/credential')
+    gitlab-clone-all \"/Users/${USER}/workspace/strmprivacy\" \$(op read \"op://Private/GitLab API Key clone script/credential\")
 
   Ensure that the 1Password secret reference matches the entry in your 1Password account.
   "
