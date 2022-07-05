@@ -1,55 +1,70 @@
 #!/usr/bin/env bash
 
-BASE_DIR=${1:?"A base directory should be provided, will clone all repos under a directory called 'gitlab' in this base dir."}
-GITLAB_TOKEN=${2:?"A GitLab Personal Access token should be provided."}
+if [ "$1" == "--help" ]
+then
+    echo "Usage: gitlab-clone-all base_dir personal_access_token
 
-# Get all GitLab repositories under strmprivacy
-after=null
-projects='[]'
-while true
-do
-  gqlquery=$(echo "{
-  group(fullPath: \\\"strmprivacy\\\") {
-    projects(includeSubgroups: true, first: 100, after: ${after}) {
-      count
-      
-      pageInfo {
-        hasNextPage
-        endCursor
-      }
-      
-      nodes {
-        sshUrlToRepo
-        httpUrlToRepo
-        fullPath
-        namespace {
-          fullPath
+  Clones all repos that do not yet exist on your local machine. Respects the GitLab directory grouping.
+
+  To prevent leaking Personal Access Tokens in your shell history, try to use the 1Password CLI, e.g.:
+
+    gitlab-clone-all \"/Users/${USER}/workspace/strmprivacy\" \$(op read 'op://Private/GitLab API Key clone script/credential')
+
+  Ensure that the 1Password secret reference matches the entry in your 1Password account.
+  "
+    exit 0
+else
+    BASE_DIR=${1:?"A base directory should be provided, will clone all repos under a directory called 'gitlab' in this base dir."}
+    GITLAB_TOKEN=${2:?"A GitLab Personal Access token should be provided."}
+
+    # Get all GitLab repositories under strmprivacy
+    after=null
+    projects='[]'
+    while true
+    do
+      gqlquery=$(echo "{
+      group(fullPath: \\\"strmprivacy\\\") {
+        projects(includeSubgroups: true, first: 100, after: ${after}) {
+          count
+
+          pageInfo {
+            hasNextPage
+            endCursor
+          }
+
+          nodes {
+            sshUrlToRepo
+            httpUrlToRepo
+            fullPath
+            namespace {
+              fullPath
+            }
+          }
         }
       }
-    }
-  }
-}" | tr '\n' ' ')
-    query="{ \"query\": \"$gqlquery\" }"
-    result=$(curl -s -H "Authorization: Bearer $GITLAB_TOKEN" -H "Content-Type:application/json" -d "$query" "https://gitlab.com/api/graphql")
-    another_page=$(echo "$result" | jq -r '.data.group.projects.pageInfo.hasNextPage')
-    nodes=$(echo "$result" | jq -r '.data.group.projects.nodes')
-    projects=$(jq --arg projects "$nodes" '. += ($projects | fromjson)' <<< "$projects")
+    }" | tr '\n' ' ')
+        query="{ \"query\": \"$gqlquery\" }"
+        result=$(curl -s -H "Authorization: Bearer $GITLAB_TOKEN" -H "Content-Type:application/json" -d "$query" "https://gitlab.com/api/graphql")
+        another_page=$(echo "$result" | jq -r '.data.group.projects.pageInfo.hasNextPage')
+        nodes=$(echo "$result" | jq -r '.data.group.projects.nodes')
+        projects=$(jq --arg projects "$nodes" '. += ($projects | fromjson)' <<< "$projects")
 
-    if $another_page
+        if $another_page
+        then
+            after=$(echo \\\"$(echo "$result" | jq -r '.data.group.projects.pageInfo.endCursor')\\\")
+        else
+            break
+        fi
+    done
+
+    echo $projects | jq -r '.[]|[.sshUrlToRepo, .fullPath, .namespace.fullPath] | @tsv' |
+    while IFS=$'\t' read -r sshUrl repoPath parentPath; do
+    fullParentPath="$BASE_DIR/gitlab/$(echo "$parentPath" | sed 's/strmprivacy\///g')"
+    fullRepoPath="$BASE_DIR/gitlab/$(echo "$repoPath" | sed 's/strmprivacy\///g')"
+
+    if [ ! -d $fullRepoPath ]
     then
-        after=$(echo \\\"$(echo "$result" | jq -r '.data.group.projects.pageInfo.endCursor')\\\")
-    else
-        break
+        mkdir -p "$BASE_DIR/gitlab/$path" && git clone "$sshUrl" "$fullRepoPath" &
     fi
-done
-
-echo $projects | jq -r '.[]|[.sshUrlToRepo, .fullPath, .namespace.fullPath] | @tsv' |
-while IFS=$'\t' read -r sshUrl repoPath parentPath; do
-fullParentPath="$BASE_DIR/gitlab/$(echo "$parentPath" | sed 's/strmprivacy\///g')"
-fullRepoPath="$BASE_DIR/gitlab/$(echo "$repoPath" | sed 's/strmprivacy\///g')"
-
-if [ ! -d $fullRepoPath ] 
-then
-    mkdir -p "$BASE_DIR/gitlab/$path" && git clone "$sshUrl" "$fullRepoPath" &
+    done
 fi
-done

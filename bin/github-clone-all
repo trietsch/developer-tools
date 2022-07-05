@@ -1,49 +1,63 @@
 #!/usr/bin/env bash
+if [ "$1" == "--help" ]
+then
+    echo "Usage: github-clone-all base_dir personal_access_token
 
-BASE_DIR=${1:?"A base directory should be provided, will clone all repos under a directory called 'github' in this base dir."}
-GITHUB_TOKEN=${2:?"A GitHub Personal Access token should be provided."}
+  Clones all repos that do not yet exist on your local machine.
 
-# Get all GitHub repositories under strmprivacy
-after=null
-projects='[]'
-while true
-do
-  gqlquery=$(echo "query Organization {
-  organization(login: \\\"strmprivacy\\\") {
-    repositories(first: 100, after: ${after}) {
-      totalCount
-      pageInfo {
-        hasNextPage
-        endCursor
-      }
-      nodes {
-        name
-        sshUrl
+  To prevent leaking Personal Access Tokens in your shell history, try to use the 1Password CLI, e.g.:
+
+    gitlab-clone-all \"/Users/${USER}/workspace/strmprivacy\" \$(op read "op://Private/GitHub API Key clone script/credential")
+
+  Ensure that the 1Password secret reference matches the entry in your 1Password account.
+  "
+    exit 0
+else
+  BASE_DIR=${1:?"A base directory should be provided, will clone all repos under a directory called 'github' in this base dir."}
+  GITHUB_TOKEN=${2:?"A GitHub Personal Access token should be provided."}
+
+  # Get all GitHub repositories under strmprivacy
+  after=null
+  projects='[]'
+  while true
+  do
+    gqlquery=$(echo "query Organization {
+    organization(login: \\\"strmprivacy\\\") {
+      repositories(first: 100, after: ${after}) {
+        totalCount
+        pageInfo {
+          hasNextPage
+          endCursor
+        }
+        nodes {
+          name
+          sshUrl
+        }
       }
     }
-  }
-}" | tr '\n' ' ')
+  }" | tr '\n' ' ')
 
-    query="{ \"query\": \"$gqlquery\" }"
-    result=$(curl -s -H "Authorization: Bearer $GITHUB_TOKEN" -H "Content-Type:application/json" -d "$query" 'https://api.github.com/graphql')
-    another_page=$(echo "$result" | jq -r '.data.organization.repositories.pageInfo.hasNextPage')
-    nodes=$(echo "$result" | jq -r '.data.organization.repositories.nodes')
-    projects=$(jq --arg projects "$nodes" '. += ($projects | fromjson)' <<< "$projects")
+      query="{ \"query\": \"$gqlquery\" }"
+      result=$(curl -s -H "Authorization: Bearer $GITHUB_TOKEN" -H "Content-Type:application/json" -d "$query" 'https://api.github.com/graphql')
+      another_page=$(echo "$result" | jq -r '.data.organization.repositories.pageInfo.hasNextPage')
+      nodes=$(echo "$result" | jq -r '.data.organization.repositories.nodes')
+      projects=$(jq --arg projects "$nodes" '. += ($projects | fromjson)' <<< "$projects")
 
-    if $another_page
-    then
-        after=$(echo \\\"$(echo "$result" | jq -r '.data.organization.repositories.pageInfo.endCursor')\\\")
-    else
-        break
-    fi
-done
+      if $another_page
+      then
+          after=$(echo \\\"$(echo "$result" | jq -r '.data.organization.repositories.pageInfo.endCursor')\\\")
+      else
+          break
+      fi
+  done
 
-echo $projects | jq -r '.[]|[.name, .sshUrl] | @tsv' |
-while IFS=$'\t' read -r name sshUrl; do
-fullRepoPath="$BASE_DIR/github/$name"
+  echo $projects | jq -r '.[]|[.name, .sshUrl] | @tsv' |
+  while IFS=$'\t' read -r name sshUrl; do
+  fullRepoPath="$BASE_DIR/github/$name"
 
-if [ ! -d $fullRepoPath ] 
-then
-    mkdir -p "$BASE_DIR/github" && git clone "$sshUrl" "$fullRepoPath" &
+  if [ ! -d $fullRepoPath ]
+  then
+      mkdir -p "$BASE_DIR/github" && git clone "$sshUrl" "$fullRepoPath" &
+  fi
+  done
 fi
-done
