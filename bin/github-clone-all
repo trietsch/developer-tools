@@ -39,7 +39,7 @@ else
 
       query="{ \"query\": \"$gqlquery\" }"
       result=$(curl -s -H "Authorization: Bearer $GITHUB_TOKEN" -H "Content-Type:application/json" -d "$query" 'https://api.github.com/graphql')
-      another_page=$(echo "$result" | jq -r '.data.organization.repositories.pageInfo.hasNextPage')
+      another_page=$(echo "$result" | jq -r '.data.organization.repositories.pageInfo.hasNextPage // false')
       nodes=$(echo "$result" | jq -r '.data.organization.repositories.nodes')
       projects=$(jq --arg projects "$nodes" '. += ($projects | fromjson)' <<< "$projects")
 
