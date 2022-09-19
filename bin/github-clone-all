@@ -38,14 +38,24 @@ else
   }" | tr '\n' ' ')
 
       query="{ \"query\": \"$gqlquery\" }"
-      result=$(curl -s -H "Authorization: Bearer $GITHUB_TOKEN" -H "Content-Type:application/json" -d "$query" 'https://api.github.com/graphql')
-      another_page=$(echo "$result" | jq -r '.data.organization.repositories.pageInfo.hasNextPage // false')
-      nodes=$(echo "$result" | jq -r '.data.organization.repositories.nodes')
+
+      response=$(curl -s -w "%{http_code}" -H "Authorization: Bearer $GITHUB_TOKEN" -H "Content-Type:application/json" -d "$query" 'https://api.github.com/graphql')
+      body=$(sed '$ d' <<< "$response")
+      response_code=$(tail -n1 <<< "$response")
+
+      if [ "$response_code" != 200 ]; then
+          echo "An error occurred while trying to get GitHub repositories. HTTP code: $response_code. Response:"
+          echo $body
+          exit 1
+      fi
+
+      another_page=$(echo "$body" | jq -r '.data.organization.repositories.pageInfo.hasNextPage // false')
+      nodes=$(echo "$body" | jq -r '.data.organization.repositories.nodes')
       projects=$(jq --arg projects "$nodes" '. += ($projects | fromjson)' <<< "$projects")
 
       if $another_page
       then
-          after=$(echo \\\"$(echo "$result" | jq -r '.data.organization.repositories.pageInfo.endCursor')\\\")
+          after=$(echo \\\"$(echo "$body" | jq -r '.data.organization.repositories.pageInfo.endCursor')\\\")
       else
           break
       fi
