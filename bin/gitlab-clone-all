@@ -16,6 +16,11 @@ then
 else
     BASE_DIR=${1:?"A base directory should be provided, will clone all repos under a directory called 'gitlab' in this base dir."}
     GITLAB_TOKEN=${2:?"A GitLab Personal Access token should be provided."}
+    if [[ "$OSTYPE" == "darwin"* ]]; then
+      HEAD="ghead"
+    else
+      HEAD="head"
+    fi
 
     # Get all GitLab repositories under strmprivacy
     after=null
@@ -24,7 +29,7 @@ else
     do
       gqlquery=$(echo "{
       group(fullPath: \\\"strmprivacy\\\") {
-        projects(includeSubgroups: true, first: 100, after: ${after}) {
+        projects(includeSubgroups: true, first: 50, after: ${after}) {
           count
 
           pageInfo {
@@ -44,14 +49,23 @@ else
       }
     }" | tr '\n' ' ')
         query="{ \"query\": \"$gqlquery\" }"
-        result=$(curl -s -H "Authorization: Bearer $GITLAB_TOKEN" -H "Content-Type:application/json" -d "$query" "https://gitlab.com/api/graphql")
-        another_page=$(echo "$result" | jq -r '.data.group.projects.pageInfo.hasNextPage')
-        nodes=$(echo "$result" | jq -r '.data.group.projects.nodes')
+        response=$(curl -s -w "%{http_code}" -H "Authorization: Bearer $GITLAB_TOKEN" -H "Content-Type:application/json" -d "$query" "https://gitlab.com/api/graphql")
+        body=$(echo ${response} | $HEAD -c-4)
+        response_code=${response: -3}
+
+        if [ "$response_code" != 200 ]; then
+            echo "An error occurred while trying to get GitLab repositories. HTTP code: $response_code. Response:"
+            echo $body
+            exit 1
+        fi
+
+        another_page=$(echo "$body" | jq -r '.data.group.projects.pageInfo.hasNextPage')
+        nodes=$(echo "$body" | jq -r '.data.group.projects.nodes')
         projects=$(jq --arg projects "$nodes" '. += ($projects | fromjson)' <<< "$projects")
 
         if $another_page
         then
-            after=$(echo \\\"$(echo "$result" | jq -r '.data.group.projects.pageInfo.endCursor')\\\")
+            after=$(echo \\\"$(echo "$body" | jq -r '.data.group.projects.pageInfo.endCursor')\\\")
         else
             break
         fi
@@ -67,4 +81,6 @@ else
         mkdir -p "$BASE_DIR/gitlab/$path" && git clone "$sshUrl" "$fullRepoPath" &
     fi
     done
+
+    echo "Finished cloning all repositories."
 fi

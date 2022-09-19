@@ -15,6 +15,12 @@ then
 else
   BASE_DIR=${1:?"A base directory should be provided, will clone all repos under a directory called 'github' in this base dir."}
   GITHUB_TOKEN=${2:?"A GitHub Personal Access token should be provided."}
+  if [[ "$OSTYPE" == "darwin"* ]]; then
+    HEAD="ghead"
+  else
+    HEAD="head"
+  fi
+
 
   # Get all GitHub repositories under strmprivacy
   after=null
@@ -40,8 +46,8 @@ else
       query="{ \"query\": \"$gqlquery\" }"
 
       response=$(curl -s -w "%{http_code}" -H "Authorization: Bearer $GITHUB_TOKEN" -H "Content-Type:application/json" -d "$query" 'https://api.github.com/graphql')
-      body=$(sed '$ d' <<< "$response")
-      response_code=$(tail -n1 <<< "$response")
+      body=$(echo ${response} | $HEAD -c-4)
+      response_code=${response: -3}
 
       if [ "$response_code" != 200 ]; then
           echo "An error occurred while trying to get GitHub repositories. HTTP code: $response_code. Response:"
@@ -70,4 +76,6 @@ else
       mkdir -p "$BASE_DIR/github" && git clone "$sshUrl" "$fullRepoPath" &
   fi
   done
+
+  echo "Finished cloning all repositories."
 fi
