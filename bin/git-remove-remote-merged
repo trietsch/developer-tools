@@ -26,10 +26,10 @@ else
 
   printf -- '- %s\n' ${branches_to_delete[@]}
   echo
-  read -p "Are you sure? [yn] " -r
+  read -p "Are you sure? [Yn] " -r
   echo
 
-  if [[ $REPLY =~ ^[Yy]$ ]]; then
+  if [[ -z $REPLY || $REPLY =~ ^[Yy]$ ]]; then
     for branch in $branches_to_delete; do git branch -D $branch; done
   else
     echo "Did not receive confirmation to delete branches, skipping."
