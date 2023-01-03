@@ -35,7 +35,7 @@ function sc() {
   fi
 
   eval "p=$(echo $results | xargs dirname | xargs basename -a | sort -r | fzf --preview \
-      'autoload /Users/trietsch/workspace/strmprivacy/gitlab/tools-and-utilities/developer-tools/rc/sc && sc_preview {}' \
+      'sc_preview {}' \
       --preview-window=right:75%:wrap)"
 
   if [ ! -z "$p" ] ; then
