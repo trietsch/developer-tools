@@ -1,0 +1,12 @@
+#!/bin/bash
+
+set -e
+DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
+NAME="$( basename "${BASH_SOURCE[0]}" )"
+JARFILE="$DIR/$NAME.jar"
+
+# the period is to read application.conf from the working directory
+exec java -cp $JARFILE:. io.strmprivacy.management.schema_registry.ApplicationKt $@
+
+
+# vim:syntax=bash

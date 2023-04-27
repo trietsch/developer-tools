@@ -29,6 +29,11 @@ then
     ENVIRONMENT=$1
     echo "Activating configuration profile $ENVIRONMENT"
     gcloud config configurations activate strm-$ENVIRONMENT
+    if [ "$ENVIRONMENT" == "dev" ] ; then
+        gcloud config set project stream-machine-development
+    else
+        gcloud config set project stream-machine-production
+    fi
 
     echo "Switching to Kubernetes cluster strm-$ENVIRONMENT"
     kubectx strm-$ENVIRONMENT
