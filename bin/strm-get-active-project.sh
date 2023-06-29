@@ -1,5 +1,9 @@
 #!/bin/bash
-p=${STRM_CONFIG_PATH:-$HOME/.config/strmprivacy}
-default_project_name=$(<$p/active_project)
+email=$(strm auth show | grep -oE '\[[^]]+\]' | tr -d '[]')
+echo "$email"
 
-strm list projects  -o json | jq --arg n "$default_project_name" -r '.projects[] | select(.name == $n)'
+p=${STRM_CONFIG_PATH:-$HOME/.config/strmprivacy}
+active_projects=$(<$p/active_projects.json)
+
+active_project=$(cat $p/active_projects.json | jq -r '.users[] | select(.email == "'"$email"'") | .active_project')
+strm list projects  -o json | jq --arg n "$active_project" -r '.projects[] | select(.name == $n)'
