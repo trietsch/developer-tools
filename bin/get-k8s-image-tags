@@ -19,7 +19,7 @@ cat <<EOF > $tmp
             ]
     }
 EOF
-for ns in core customers
+for ns in core
 do
     kubectl get pods --namespace=$ns -o=json | jq -c -f $tmp
 done
