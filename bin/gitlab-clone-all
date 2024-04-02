@@ -8,7 +8,7 @@ then
 
   To prevent leaking Personal Access Tokens in your shell history, try to use the 1Password CLI, e.g.:
 
-    gitlab-clone-all \"/Users/${USER}/workspace/bol\" \" \$(op read \"op://Private/GitLab API Key clone script/credential\")
+    gitlab-clone-all \"/Users/${USER}/workspace/bol\" \"team2s\" \"gitlab.bol.io\" \$(op read \"op://Private/Gitlab Bol/credential\")
 
   Ensure that the 1Password secret reference matches the entry in your 1Password account.
   "
@@ -20,8 +20,10 @@ else
     GITLAB_TOKEN=${4:?"A GitLab Personal Access token should be provided."}
     if [[ "$OSTYPE" == "darwin"* ]]; then
       HEAD="ghead"
+      SED="gsed"
     else
       HEAD="head"
+      SED="sed"
     fi
 
     # Get all GitLab repositories under the provided group
@@ -75,8 +77,8 @@ else
 
     echo $projects | jq -r '.[]|[.sshUrlToRepo, .fullPath, .namespace.fullPath] | @tsv' |
     while IFS=$'\t' read -r sshUrl repoPath parentPath; do
-    fullParentPath="$BASE_DIR/$(echo "$parentPath" | sed \"s|$GITLAB_PATH/||g\")"
-    fullRepoPath="$BASE_DIR/$(echo "$repoPath" | sed \"s/$GITLAB_PATH/||g\")"
+    fullParentPath="$BASE_DIR/$(echo "$parentPath" | $SED "s|$GITLAB_PATH/||g")"
+    fullRepoPath="$BASE_DIR/$(echo "$repoPath" | $SED "s|$GITLAB_PATH/||g")"
 
     if [ ! -d $fullRepoPath ]
     then
