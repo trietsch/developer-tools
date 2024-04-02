@@ -45,10 +45,16 @@ except IndexError:
     globalconfig = git.GitConfigParser([os.path.normpath(os.path.expanduser("~/.gitconfig"))], read_only=True)
     username = globalconfig.get_value("user", "name")
 
+try:
+    branch = sys.argv[4]
+except IndexError:
+    branch = "master"
+
 
 def scantree(path):
     # Based on: https://stackoverflow.com/questions/33135038/how-do-i-use-os-scandir-to-return-direntry-objects-recursively-on-a-directory
     for entry in os.scandir(path):
+        # print(f"{entry.path}/{entry.name}", file=sys.stderr)
         if (entry.name != "node_modules" and not entry.name.startswith(".")) or entry.name == ".git":
             if entry.is_dir(follow_symlinks=False) and entry.name != ".git":
                 yield from scantree(entry.path)
@@ -62,7 +68,7 @@ for entry in scantree(os.getcwd()):
     repo = git.Repo(entry.path)
 
     try:
-        for commit in repo.iter_commits("master", author=username, before=before, after=after):
+        for commit in repo.iter_commits(branch, author=username, before=before, after=after):
             days[commit.committed_datetime.strftime("%Y-%m-%d")].append(commit)
     except git.GitCommandError as e:
         error = e.stderr.replace('\r', '').replace('\n', '').strip()
