@@ -18,6 +18,9 @@ else
     GITLAB_PATH=${2:?"Provide the path (e.g. group) that you'd like to clone."}
     GITLAB_HOST=${3:="gitlab.com"}
     GITLAB_TOKEN=${4:?"A GitLab Personal Access token should be provided."}
+
+    FULL_BASE_DIR="$BASE_DIR/$GITLAB_PATH"
+
     if [[ "$OSTYPE" == "darwin"* ]]; then
       HEAD="ghead"
       SED="gsed"
@@ -77,12 +80,12 @@ else
 
     echo $projects | jq -r '.[]|[.sshUrlToRepo, .fullPath, .namespace.fullPath] | @tsv' |
     while IFS=$'\t' read -r sshUrl repoPath parentPath; do
-    fullParentPath="$BASE_DIR/$(echo "$parentPath" | $SED "s|$GITLAB_PATH/||g")"
-    fullRepoPath="$BASE_DIR/$(echo "$repoPath" | $SED "s|$GITLAB_PATH/||g")"
+    fullParentPath="$FULL_BASE_DIR/$(echo "$parentPath" | $SED "s|$GITLAB_PATH/||g")"
+    fullRepoPath="$FULL_BASE_DIR/$(echo "$repoPath" | $SED "s|$GITLAB_PATH/||g")"
 
     if [ ! -d $fullRepoPath ]
     then
-        mkdir -p "$BASE_DIR/$path" && git clone "$sshUrl" "$fullRepoPath" &
+        mkdir -p "$FULL_BASE_DIR" && git clone "$sshUrl" "$fullRepoPath" &
     fi
     done
 
