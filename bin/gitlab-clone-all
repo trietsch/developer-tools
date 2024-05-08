@@ -36,7 +36,7 @@ else
     do
       gqlquery=$(echo "{
       group(fullPath: \\\"$GITLAB_PATH\\\") {
-        projects(includeSubgroups: true, first: 50, after: ${after}) {
+        projects(includeSubgroups: true, includeArchived: false, first: 50, after: ${after}) {
           count
 
           pageInfo {
