@@ -1,0 +1,19 @@
+#!/bin/bash
+
+# Push a new branch to the remote and open the remote URL to create an MR/PR
+# Add as an alias to your gitconfig:
+# push-new = "!git-push-new"
+
+# Usage: git push-new
+
+set -e
+
+current_branch=$(git branch --show-current)
+res=$(git push -u origin "$current_branch")
+url=$(echo $res | grep '/merge_requests/' | awk '{ print $2 }')
+
+if [ ! -z "${url}" ]; then
+    open $url
+fi
+
+echo "$res"
