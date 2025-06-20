@@ -1,6 +1,6 @@
 # Developer Tools
 
-A toolbox full of useful scripts and functions, that you can use as a STRM engineer.
+A toolbox full of useful scripts and functions, that you can use as a software engineer.
 
 ## Scripts / Binaries
 
