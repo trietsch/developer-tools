@@ -1,0 +1,32 @@
+#!/usr/bin/env bash
+
+# Prepend a commit message provided as an argument with the devops ticket used in the branch name
+# Add as an alias to your gitconfig:
+# devops = "!git-devops"
+
+# Usage: git devops "My commit message"
+
+current_branch=$(git branch --show-current)
+
+if [[ "$OSTYPE" == "darwin"* ]]; then
+  SED="gsed"
+else
+  SED="sed"
+fi
+
+# Interactive and merge rebases
+if [[ -f .git/rebase-merge/head-name ]]; then
+  current_branch=$(cat .git/rebase-merge/head-name | $SED 's|refs/heads/||')
+# Apply rebases
+elif [[ -f .git/rebase-apply/head-name ]]; then
+  current_branch=$(cat .git/rebase-apply/head-name | $SED 's|refs/heads/||')
+fi
+
+if [[ "$current_branch" =~ .*([0-9]+).*$ ]]
+then
+  devops_ticket=$(echo "$current_branch" | $SED -E 's/[^0-9]*?([0-9]+).*/\1/')
+  git commit -a -m"#$devops_ticket $*"
+else
+  echo "The current git branch does not contain a devops ticket number"
+  exit 1
+fi

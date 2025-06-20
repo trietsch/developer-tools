@@ -1,0 +1,36 @@
+#!/bin/bash
+
+# Push a new branch to the remote and open the remote URL to create an MR/PR
+# Add as an alias to your gitconfig:
+# push-new = "!git-push-new"
+
+# Usage: git push-new
+
+current_branch=$(git branch --show-current)
+res=$(git push -u origin "$current_branch" 2>&1)
+url=$(echo "$res" | grep -iE '/merge_requests/' | awk '{ print $2 }')
+
+if [ ! -z "${url}" ]; then
+    /usr/bin/open "$url"
+elif git remote get-url origin | grep -q 'dev.azure.com'; then
+    # Azure DevOps does not return a URL in the push output, so we construct it manually
+
+    remote_url=$(git remote get-url origin)
+    if [[ "$remote_url" =~ ^git@ssh.dev.azure.com:v3/(.*)$ ]]; then
+        # SSH: org/project/repo
+        path_part="${BASH_REMATCH[1]}"
+        IFS='/' read -r org project repo <<< "$path_part"
+        org_escaped="${org// /%20}"
+        project_escaped="${project// /%20}"
+        repo_escaped="${repo// /%20}"
+        remote_url="https://dev.azure.com/${org_escaped}/${project_escaped}/_git/${repo_escaped}"
+    elif [[ "$remote_url" =~ ^https://.*@dev.azure.com/(.*)$ ]]; then
+        path_part="${BASH_REMATCH[1]}"
+        path_part_escaped="${path_part// /%20}"
+        remote_url="https://dev.azure.com/${path_part}"
+    fi
+    repo_name=$(basename "$remote_url")
+    pr_url="${remote_url}/pullrequestcreate?sourceRef=${current_branch}&targetRef=main&sourceRepositoryId=${repo_name}&targetRepositoryId=${repo_name}"
+    /usr/bin/open "$pr_url"
+fi
+echo "$res"

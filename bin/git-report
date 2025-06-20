@@ -1,0 +1,86 @@
+#!/usr/bin/env python3
+
+import datetime
+import os
+import sys
+from collections import defaultdict
+
+
+def print_help():
+    print("""
+Usage: git-report [--week] <after> <before> [author]
+use --week for a report for the current week
+after = 2020-08-30 23:59
+before = 2020-10-30 23:59
+author = your full configured user.name (uses this by default)
+
+Output can be redirected. E.g. git-report \"2020-08-30 23:59\" \"2020-09-30 23:59\" \"Robin Trietsch\" | code -
+    """)
+
+
+if len(sys.argv) < 1 or sys.argv[0] == "--help":
+    print_help()
+    exit(0)
+
+if sys.argv[1] == "--week":
+    today = datetime.datetime.now()
+    monday = today - datetime.timedelta(days=today.weekday())
+    sunday = monday + datetime.timedelta(days=6)
+    after = monday.replace(hour=0, minute=0).strftime("%Y-%m-%d %H:%M")
+    before = sunday.replace(hour=23, minute=59).strftime("%Y-%m-%d %H:%M")
+    print("Generating report for current week (" + after + " until " + before + ")")
+else:
+    after = sys.argv[1]
+    before = sys.argv[2]
+
+try:
+    import git
+except ImportError:
+    print("GitPython is not installed, please run \"python3 -m pip install GitPython\"")
+    exit(1)
+
+try:
+    username = sys.argv[3]
+except IndexError:
+    globalconfig = git.GitConfigParser([os.path.normpath(os.path.expanduser("~/.gitconfig"))], read_only=True)
+    username = globalconfig.get_value("user", "name")
+
+try:
+    branch = sys.argv[4]
+except IndexError:
+    branch = "master"
+
+
+def scantree(path):
+    # Based on: https://stackoverflow.com/questions/33135038/how-do-i-use-os-scandir-to-return-direntry-objects-recursively-on-a-directory
+    for entry in os.scandir(path):
+        # print(f"{entry.path}/{entry.name}", file=sys.stderr)
+        if (entry.name != "node_modules" and not entry.name.startswith(".")) or entry.name == ".git":
+            if entry.is_dir(follow_symlinks=False) and entry.name != ".git":
+                yield from scantree(entry.path)
+            elif entry.name == ".git":
+                yield entry
+
+
+days = defaultdict(list)
+
+for entry in scantree(os.getcwd()):
+    repo = git.Repo(entry.path)
+
+    try:
+        for commit in repo.iter_commits(branch, author=username, before=before, after=after):
+            days[commit.committed_datetime.strftime("%Y-%m-%d")].append(commit)
+    except git.GitCommandError as e:
+        error = e.stderr.replace('\r', '').replace('\n', '').strip()
+        print(f"Error for repo {entry.path}: {error}", file=sys.stderr)
+
+# Print per day
+for day in sorted(days.keys()):
+    print("===============================")
+    print(day)
+    print("===============================")
+    commits = days[day]
+    for commit in commits:
+        if not commit.summary.startswith("chore(release)"):
+            print(f"{commit.summary} -- {commit.hexsha} -- ({commit.repo.working_dir})")
+    print()

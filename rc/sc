@@ -1,0 +1,47 @@
+#!/usr/bin/env bash
+
+# Originally created by Bart van Deenen, added to dev tools by Robin
+
+function sc() {
+  # Sets the strm-config, by looking into STRM_CONTEXT_ROOT for config.yaml files
+  if ! command -v fzf &> /dev/null
+  then
+      echo "Fuzzy Finder (https://github.com/junegunn/fzf) could not be found. Please install it to use this script"
+      return 1
+  fi
+
+  if [ ! -n "$STRM_CONTEXT_ROOT" ]
+  then
+    echo "Please set the environment variable STRM_CONTEXT_ROOT to the path where STRM_CONFIG_PATHs can be found."
+    return 1
+  else
+    # in order to safely expand ~ that might be set in double quoted strings
+    # https://stackoverflow.com/a/27485157
+    STRM_CONTEXT_ROOT="${STRM_CONTEXT_ROOT/#\~/$HOME}"
+  fi
+
+  if [ ! -n "$STRM_CONTEXT_WITH_ICONS" ]
+  then
+    echo "Please set the environment variable STRM_CONTEXT_WITH_ICONS to true, if you have icons in your STRM_CONFIG_PATHs. Else set it to false."
+    return 1
+  fi
+
+  cd $STRM_CONTEXT_ROOT
+
+  if [ "$STRM_CONTEXT_WITH_ICONS" = true ] ; then
+    results=$(find . -name icon-[PD]*)
+  else
+    results=$(find . -name config.yaml)
+  fi
+
+  eval "p=$(echo $results | xargs dirname | xargs basename -a | sort -r | fzf --preview \
+      'sc_preview {}' \
+      --preview-window=right:75%:wrap)"
+
+  if [ ! -z "$p" ] ; then
+      export STRM_CONFIG_PATH=$(realpath $p)
+  else
+    echo "Did not change STRM_CONFIG_PATH."
+  fi
+  cd - > /dev/null
+}
