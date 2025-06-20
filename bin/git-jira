@@ -1,0 +1,18 @@
+#!/usr/bin/env bash
+
+# Prepend a commit message provided as an argument with the Jira ticket used in the branch name
+# Add as an alias to your gitconfig:
+# jira = "!git-jira"
+
+# Usage: git jira "My commit message"
+
+current_branch=$(git branch --show-current)
+
+if [[ "$current_branch" =~ ^([a-zA-Z0-9]{2,}-[0-9]+|NOJIRA).*$ ]]
+then
+  jira_ticket=$(git branch --show-current | sed -E 's/(([a-zA-Z0-9]{2,}-[0-9]+)|NOJIRA).*/\1/')
+  git commit -a -m"$jira_ticket $*"
+else
+  echo "The current git branch does not contain a JIRA ticket"
+  exit 1
+fi

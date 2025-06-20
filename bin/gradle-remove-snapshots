@@ -1,0 +1,3 @@
+#!/usr/bin/env bash
+
+find  ~/.gradle/caches -type d -regex .*SNAPSHOT -prune -print0 | xargs -r0 -- rm -rf; find  ~/.m2/repository -type d -regex .*SNAPSHOT -prune -print0 | xargs -r0 -- rm -rf

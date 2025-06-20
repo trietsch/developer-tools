@@ -1,0 +1,37 @@
+#!/usr/bin/env bash
+
+# Protip! You can add this to your gitconfig as a custom git command:
+# 1. open `~/.gitconfig`
+# 2. if the [alias] block doesn't exist, create it
+# 3. add the following line:
+#       remove-remote-merged = !git-remove-remote-merged
+# 4. Save the file, now you can do:
+#       git remove-remote-merged
+
+if [[ "$OSTYPE" == "darwin"* ]]; then
+  AWK="gawk"
+else
+  AWK="awk"
+fi
+
+# Based on https://stackoverflow.com/a/33548037
+git fetch -p >/dev/null 2>&1
+
+branches_to_delete=$(git branch -vv | "$AWK" '{print $1,$4}' | grep 'gone]' | "$AWK" '{print $1}')
+
+if [ -z "$branches_to_delete" ]; then
+  echo "Nothing to delete, no branches exist locally that have been merged in remote."
+else
+  echo "Would delete the following branches which are merged in the remote base branch:"
+
+  printf -- '- %s\n' ${branches_to_delete[@]}
+  echo
+  read -p "Are you sure? [Yn] " -r
+  echo
+
+  if [[ -z $REPLY || $REPLY =~ ^[Yy]$ ]]; then
+    for branch in $branches_to_delete; do git branch -D $branch; done
+  else
+    echo "Did not receive confirmation to delete branches, skipping."
+  fi
+fi

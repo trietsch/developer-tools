@@ -1,0 +1,57 @@
+#!/usr/bin/env bash
+
+# Check if exactly one argument is provided
+if [ "$#" -ne 1 ]; then
+    echo "Usage: $0 <Azure Subscription Name>"
+    exit 1
+fi
+
+subscription_name="$1"
+
+subscription=$(az account list --query "[?name=='$subscription_name'].id" --output tsv)
+scope="/subscriptions/$subscription"
+roleName="Owner"
+echo "Fetching role definition id for role $roleName at scope $scope"
+roleDefinitionId=$(az role definition list --name $roleName --scope $scope --query [0].id -o tsv)
+durationHours=8
+justification="work"
+
+# get the object id of the user logged in
+echo "Fetching principal id for the signed in user"
+principalId=$(az ad signed-in-user show -o tsv --query id)
+
+# find the first matching role eligibility for this user, scope and role.
+# There might be multiple, but it probably does not matter which one we activate
+echo "Fetching role eligibility schedule id for principal $principalId and role $roleDefinitionId"
+eligibilityScheduleId=$(az rest \
+  --uri "https://management.azure.com$scope/providers/Microsoft.Authorization/roleEligibilitySchedules" \
+  --uri-parameters "\$filter=assignedTo('$principalId') and atScope() and roleDefinitionId eq '$roleDefinitionId'" \
+                   "api-version=2020-10-01" \
+  --query value[0].id \
+  -o tsv)
+
+uuid=$(uuidgen | awk '{print tolower($0)}')
+
+echo "Activating role $roleDefinitionId for principal $principalId with eligibility schedule $eligibilityScheduleId"
+# activate role
+az rest \
+    --method PUT \
+    --uri "https://management.azure.com$scope/providers/Microsoft.Authorization/roleAssignmentScheduleRequests/${uuid}?api-version=2020-10-01" \
+    --body "
+        {
+            \"properties\": {
+                \"principalId\": \"$principalId\",
+                \"roleDefinitionId\": \"$roleDefinitionId\",
+                \"requestType\": \"SelfActivate\",
+                \"linkedRoleEligibilityScheduleId\": \"$eligibilityScheduleId\",
+                \"justification\": \"$justification\",
+                \"scheduleInfo\": {
+                    \"expiration\": {
+                        \"type\": \"AfterDuration\",
+                        \"duration\": \"PT${durationHours}H\"
+                    }
+                }
+            }
+        }" 2>/dev/null
+
+echo "Role '$roleName' activated for $durationHours hours"

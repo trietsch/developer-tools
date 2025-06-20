@@ -1,0 +1,21 @@
+#!/usr/bin/env bash
+
+# Usage:
+# echo "<encrypted_text>" | decrypt-stdin
+
+IN_FILE=$(mktemp /tmp/encryptstdin.XXXXXX)
+ENCRYPTED=$(mktemp /tmp/encryptstdin.XXXXXX)
+OUT_FILE=$(mktemp /tmp/encryptstdin.XXXXXX)
+
+echo """$(cat -)
+""" > $IN_FILE
+
+cat $IN_FILE | openssl enc -base64 -d > $ENCRYPTED
+
+openssl aes-256-cbc -d -in $ENCRYPTED -out $OUT_FILE
+cat $OUT_FILE
+
+rm $ENCRYPTED
+rm $OUT_FILE
+rm $IN_FILE
+

@@ -1,0 +1,41 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ldap-test
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: ldap-test
+  template:
+    metadata:
+      labels:
+        app: ldap-test
+    spec:
+      automountServiceAccountToken: true
+      containers:
+        - name: ldap
+          image: rroemhild/test-openldap
+          ports:
+          - containerPort: 10389
+            name: ldap
+            protocol: TCP
+
+
+---
+
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app: ldap-test
+  name: ldap-test
+spec:
+  ports:
+  - name: ldap
+    port: 389
+    protocol: TCP
+    targetPort: ldap
+  selector:
+    app: ldap-test
+  type: ClusterIP

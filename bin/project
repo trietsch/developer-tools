@@ -1,0 +1,45 @@
+#!/usr/bin/env bash
+
+if [ "$1" == "--help" ]
+then
+    echo "Usage: project [environment]
+  environment = e.g. 'dev' | 'prod'
+  
+  Omitting the 'environment' variable will list current configuration and kube context.
+  
+  Requirements:
+  - gcloud sdk
+  - kubectx
+  
+  Pre-requisites:
+  - gcloud configurations named strm-<environment>
+  - kube contexts named strm-<environment>
+  
+  Creating a gcloud configuration:
+  1. gcloud config configurations create strm-myenv
+  2. gcloud config configurations set project stream-machine-my-gcp-project
+  3. gcloud config configurations set account myemail@streammachine.io
+  
+  Renaming a kube context:
+  1. Obtain cluster credentials with: gcloud container clusters get-credentials stream-machine-gke-cluster-name --zone europe-west4-c
+  2. Rename the context with: kubectx strm-myenv=<some-long-name-automatically-set-by-gcloud>"
+    exit 0
+elif [ $# -ge 1 ]
+then
+    ENVIRONMENT=$1
+    echo "Activating configuration profile $ENVIRONMENT"
+    gcloud config configurations activate strm-$ENVIRONMENT
+    if [ "$ENVIRONMENT" == "dev" ] ; then
+        gcloud config set project stream-machine-development
+    else
+        gcloud config set project stream-machine-production
+    fi
+
+    echo "Switching to Kubernetes cluster strm-$ENVIRONMENT"
+    kubectx strm-$ENVIRONMENT
+else
+    gcloud config list
+    echo
+    CURRENT_CLUSTER=$(kubectl config current-context)
+    echo "Kubernetes cluster ${CURRENT_CLUSTER}"
+fi

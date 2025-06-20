@@ -1,0 +1,14 @@
+#!/bin/bash
+set -e
+
+if [ `which open 2> /dev/null` ] ; then
+    open=open
+else
+    open=xdg-open
+fi
+branch=$(git branch  | grep '^*' | head -1  | awk '{print $2}')
+
+path=$(git remote -v | perl -ne \
+    '/^origin\s+git@(.*):([^.]*)(\.git|)\s+\(fetch\)/ && print "$1/$2"')
+set -x
+$open "https://$path/tree/$branch" &
