@@ -6,6 +6,7 @@
 
 # Usage: git devops "My commit message"
 
+repo_root=$(git rev-parse --show-toplevel)
 current_branch=$(git branch --show-current)
 
 if [[ "$OSTYPE" == "darwin"* ]]; then
@@ -15,11 +16,11 @@ else
 fi
 
 # Interactive and merge rebases
-if [[ -f .git/rebase-merge/head-name ]]; then
-  current_branch=$(cat .git/rebase-merge/head-name | $SED 's|refs/heads/||')
+if [[ -f "$repo_root/.git/rebase-merge/head-name" ]]; then
+  current_branch=$(cat "$repo_root/.git/rebase-merge/head-name" | $SED 's|refs/heads/||')
 # Apply rebases
-elif [[ -f .git/rebase-apply/head-name ]]; then
-  current_branch=$(cat .git/rebase-apply/head-name | $SED 's|refs/heads/||')
+elif [[ -f "$repo_root/.git/rebase-apply/head-name" ]]; then
+  current_branch=$(cat "$repo_root/.git/rebase-apply/head-name" | $SED 's|refs/heads/||')
 fi
 
 if [[ "$current_branch" =~ .*([0-9]+).*$ ]]
