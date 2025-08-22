@@ -8,7 +8,11 @@
 
 current_branch=$(git branch --show-current)
 res=$(git push -u origin "$current_branch" 2>&1)
-url=$(echo "$res" | grep -iE '/merge_requests/' | awk '{ print $2 }')
+url=$(echo "$res" | grep -iE '/merge_requests/|Create a pull request.*by visiting:' | awk '{ print $2 }')
+if [ -z "${url}" ]; then
+    # Check for GitHub PR URL format
+    url=$(echo "$res" | grep -o 'https://github.com[^ ]*')
+fi
 
 if [ ! -z "${url}" ]; then
     /usr/bin/open "$url"
