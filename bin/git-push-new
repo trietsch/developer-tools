@@ -6,20 +6,32 @@
 
 # Usage: git push-new
 
-current_branch=$(git branch --show-current)
-res=$(git push -u origin "$current_branch" 2>&1)
-url=$(echo "$res" | grep -iE '/merge_requests/|Create a pull request.*by visiting:' | awk '{ print $2 }')
-if [ -z "${url}" ]; then
-    # Check for GitHub PR URL format
-    url=$(echo "$res" | grep -o 'https://github.com[^ ]*')
-fi
+open_url() {
+    local url="$1"
+    if [ ! -z "${url}" ]; then
+        /usr/bin/open "$url"
+    fi
+}
 
-if [ ! -z "${url}" ]; then
-    /usr/bin/open "$url"
-elif git remote get-url origin | grep -q 'dev.azure.com'; then
-    # Azure DevOps does not return a URL in the push output, so we construct it manually
+extract_url_from_push_output() {
+    local push_output="$1"
+    local url
+    
+    # Try GitLab/general format first
+    url=$(echo "$push_output" | grep -iE '/merge_requests/|Create a pull request.*by visiting:' | awk '{ print $2 }')
+    
+    # Try GitHub format if no URL found
+    if [ -z "${url}" ]; then
+        url=$(echo "$push_output" | grep -o 'https://github.com[^ ]*')
+    fi
+    
+    echo "$url"
+}
 
-    remote_url=$(git remote get-url origin)
+create_azure_devops_pr_url() {
+    local current_branch="$1"
+    local remote_url=$(git remote get-url origin)
+    
     if [[ "$remote_url" =~ ^git@ssh.dev.azure.com:v3/(.*)$ ]]; then
         # SSH: org/project/repo
         path_part="${BASH_REMATCH[1]}"
@@ -33,8 +45,23 @@ elif git remote get-url origin | grep -q 'dev.azure.com'; then
         path_part_escaped="${path_part// /%20}"
         remote_url="https://dev.azure.com/${path_part}"
     fi
-    repo_name=$(basename "$remote_url")
-    pr_url="${remote_url}/pullrequestcreate?sourceRef=${current_branch}&targetRef=main&sourceRepositoryId=${repo_name}&targetRepositoryId=${repo_name}"
-    /usr/bin/open "$pr_url"
+    
+    local repo_name=$(basename "$remote_url")
+    echo "${remote_url}/pullrequestcreate?sourceRef=${current_branch}&targetRef=main&sourceRepositoryId=${repo_name}&targetRepositoryId=${repo_name}"
+}
+
+current_branch=$(git branch --show-current)
+res=$(git push -u origin "$current_branch" 2>&1)
+
+# Try to extract URL from push output
+url=$(extract_url_from_push_output "$res")
+
+if [ ! -z "${url}" ]; then
+    open_url "$url"
+elif git remote get-url origin | grep -q 'dev.azure.com'; then
+    # Azure DevOps does not return a URL in the push output, so we construct it manually
+    azure_url=$(create_azure_devops_pr_url "$current_branch")
+    open_url "$azure_url"
 fi
+
 echo "$res"
