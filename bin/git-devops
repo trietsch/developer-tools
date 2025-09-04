@@ -26,7 +26,7 @@ fi
 if [[ "$current_branch" =~ .*([0-9]+).*$ ]]
 then
   devops_ticket=$(echo "$current_branch" | $SED -E 's/[^0-9]*?([0-9]+).*/\1/')
-  git commit -a -m"#$devops_ticket $*"
+  git commit -a -m"#$devops_ticket $1" "${@:2}"
 else
   echo "The current git branch does not contain a devops ticket number"
   exit 1
