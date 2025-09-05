@@ -51,10 +51,17 @@ create_azure_devops_pr_url() {
 }
 
 current_branch=$(git branch --show-current)
-res=$(git push -u origin "$current_branch" 2>&1)
+push_result=$(git push -u origin "$current_branch" 2>&1)
+push_exit_code=$?
+
+# If non-zero, exit without opening the remote URL for the MR/PR
+if [ $push_exit_code -ne 0 ]; then
+    echo "$push_result"
+    exit $push_exit_code
+fi
 
 # Try to extract URL from push output
-url=$(extract_url_from_push_output "$res")
+url=$(extract_url_from_push_output "$push_result")
 
 if [ ! -z "${url}" ]; then
     open_url "$url"
@@ -64,4 +71,4 @@ elif git remote get-url origin | grep -q 'dev.azure.com'; then
     open_url "$azure_url"
 fi
 
-echo "$res"
+echo "$push_result"
