@@ -1,0 +1,207 @@
+#!/usr/bin/env bash
+
+# Trap SIGTERM and SIGINT to exit immediately
+trap 'echo -e "\n${RED}Script interrupted, exiting...${NC}"; exit 130' SIGTERM SIGINT
+
+# Colors for output
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+NC='\033[0m' # No Color
+
+# Function to display usage
+usage() {
+    echo "Usage: $0 -s <subscription> -g <resource-group> -t <image-tag> [-r <registry>]"
+    echo ""
+    echo "Options:"
+    echo "  -s    Azure subscription ID or name"
+    echo "  -g    Resource group name"
+    echo "  -t    New image tag to deploy"
+    echo "  -r    Azure Container Registry name (optional, will auto-detect if not provided)"
+    echo "  -h    Display this help message"
+    echo ""
+    echo "Example:"
+    echo "  $0 -s my-subscription -g my-resource-group -t v1.2.3 -r myregistry"
+    exit 1
+}
+
+# Parse command-line arguments
+SUBSCRIPTION=""
+RESOURCE_GROUP=""
+IMAGE_TAG=""
+REGISTRY=""
+
+while getopts "s:g:t:r:h" opt; do
+    case $opt in
+        s) SUBSCRIPTION="$OPTARG" ;;
+        g) RESOURCE_GROUP="$OPTARG" ;;
+        t) IMAGE_TAG="$OPTARG" ;;
+        r) REGISTRY="$OPTARG" ;;
+        h) usage ;;
+        *) usage ;;
+    esac
+done
+
+# Validate required arguments
+if [ -z "$SUBSCRIPTION" ] || [ -z "$RESOURCE_GROUP" ] || [ -z "$IMAGE_TAG" ]; then
+    echo -e "${RED}Error: Missing required arguments${NC}"
+    usage
+fi
+
+echo -e "${GREEN}Starting Azure Container Apps update${NC}"
+echo "Subscription: $SUBSCRIPTION"
+echo "Resource Group: $RESOURCE_GROUP"
+echo "Image Tag: $IMAGE_TAG"
+echo ""
+
+# Set the Azure subscription
+echo -e "${YELLOW}Setting Azure subscription...${NC}"
+az account set --subscription "$SUBSCRIPTION"
+
+# List all container apps in the resource group
+echo -e "${YELLOW}Fetching container apps in resource group '$RESOURCE_GROUP'...${NC}"
+mapfile -t APPS < <(az containerapp list --resource-group "$RESOURCE_GROUP" --query "[].name" -o tsv)
+
+if [ ${#APPS[@]} -eq 0 ]; then
+    echo -e "${RED}No container apps found in resource group '$RESOURCE_GROUP'${NC}"
+    exit 1
+fi
+
+APP_COUNT=${#APPS[@]}
+echo -e "${GREEN}Found $APP_COUNT container app(s)${NC}"
+echo ""
+
+# Prepare deployment information for all apps
+declare -a DEPLOYMENT_JOBS=()
+TEMP_DIR=$(mktemp -d)
+
+echo -e "${YELLOW}Preparing deployments...${NC}"
+
+for APP_NAME in "${APPS[@]}"; do
+    # Get the current container configuration
+    CONTAINER_INFO=$(az containerapp show \
+        --name "$APP_NAME" \
+        --resource-group "$RESOURCE_GROUP" \
+        --query "properties.template.containers[0]" \
+        -o json 2>/dev/null < /dev/null)
+
+    if [ -z "$CONTAINER_INFO" ]; then
+        echo -e "${RED}Failed to get container info for $APP_NAME, skipping${NC}"
+        continue
+    fi
+
+    # Extract current image
+    CURRENT_IMAGE=$(echo "$CONTAINER_INFO" | jq -r '.image')
+
+    if [ -z "$CURRENT_IMAGE" ] || [ "$CURRENT_IMAGE" == "null" ]; then
+        echo -e "${RED}Failed to extract current image for $APP_NAME, skipping${NC}"
+        continue
+    fi
+
+    # Extract image name without tag
+    IMAGE_WITHOUT_TAG=$(echo "$CURRENT_IMAGE" | sed 's/:[^:]*$//')
+
+    # If registry is specified, verify it matches
+    if [ -n "$REGISTRY" ]; then
+        if [[ ! "$IMAGE_WITHOUT_TAG" =~ ^$REGISTRY ]]; then
+            echo -e "${RED}Image does not match registry '$REGISTRY' for $APP_NAME, skipping${NC}"
+            continue
+        fi
+    fi
+
+    # Construct new image with new tag
+    NEW_IMAGE="${IMAGE_WITHOUT_TAG}:${IMAGE_TAG}"
+
+    # Store deployment job info
+    DEPLOYMENT_JOBS+=("$APP_NAME|$CURRENT_IMAGE|$NEW_IMAGE")
+done
+
+echo -e "${GREEN}Starting ${#DEPLOYMENT_JOBS[@]} parallel deployments...${NC}"
+echo ""
+
+# Start all deployments in parallel
+declare -a PIDS=()
+declare -a LOG_FILES=()
+
+for JOB in "${DEPLOYMENT_JOBS[@]}"; do
+    IFS='|' read -r APP_NAME CURRENT_IMAGE NEW_IMAGE <<< "$JOB"
+
+    LOG_FILE="$TEMP_DIR/${APP_NAME}.log"
+    LOG_FILES+=("$LOG_FILE")
+
+    # Start deployment in background
+    (
+        ERROR_OUTPUT=$(az containerapp revision copy \
+            --name "$APP_NAME" \
+            --resource-group "$RESOURCE_GROUP" \
+            --image "$NEW_IMAGE" \
+            --output none 2>&1 < /dev/null)
+        EXIT_CODE=$?
+
+        if [ $EXIT_CODE -eq 0 ]; then
+            echo "SUCCESS"
+        else
+            echo "FAILED"
+            echo "ERROR: $ERROR_OUTPUT"
+        fi
+    ) > "$LOG_FILE" &
+
+    PIDS+=($!)
+done
+
+# Wait for each deployment sequentially and print logs
+SUCCESS_COUNT=0
+FAIL_COUNT=0
+INDEX=0
+
+for JOB in "${DEPLOYMENT_JOBS[@]}"; do
+    IFS='|' read -r APP_NAME CURRENT_IMAGE NEW_IMAGE <<< "$JOB"
+    PID=${PIDS[$INDEX]}
+    LOG_FILE=${LOG_FILES[$INDEX]}
+
+    echo -e "${YELLOW}Processing: $APP_NAME${NC}"
+    echo "  Current image: $CURRENT_IMAGE"
+    echo "  New image: $NEW_IMAGE"
+    echo "  Creating new revision..."
+
+    # Wait for this specific deployment to complete
+    wait $PID
+
+    # Read the result
+    RESULT=$(cat "$LOG_FILE" 2>/dev/null | head -n 1)
+
+    if [ "$RESULT" == "SUCCESS" ]; then
+        echo -e "${GREEN}  Successfully created new revision for $APP_NAME${NC}"
+        ((SUCCESS_COUNT++))
+    else
+        echo -e "${RED}  Failed to create new revision for $APP_NAME${NC}"
+        # Show error details
+        ERROR_DETAILS=$(cat "$LOG_FILE" 2>/dev/null | tail -n +2)
+        if [ -n "$ERROR_DETAILS" ]; then
+            echo -e "${RED}  $ERROR_DETAILS${NC}"
+        fi
+        ((FAIL_COUNT++))
+    fi
+
+    echo ""
+    ((INDEX++))
+done
+
+# Cleanup temp directory
+rm -rf "$TEMP_DIR"
+
+# Summary
+echo -e "${GREEN}=====================================${NC}"
+echo -e "${GREEN}Update Summary${NC}"
+echo -e "${GREEN}=====================================${NC}"
+echo "Total apps: $APP_COUNT"
+echo -e "${GREEN}Successful: $SUCCESS_COUNT${NC}"
+if [ $FAIL_COUNT -gt 0 ]; then
+    echo -e "${RED}Failed: $FAIL_COUNT${NC}"
+else
+    echo "Failed: $FAIL_COUNT"
+fi
+
+if [ $FAIL_COUNT -gt 0 ]; then
+    exit 1
+fi
