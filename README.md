@@ -10,6 +10,11 @@ Can be found in the `/bin` directory. Make sure to add this directory to your pa
 export PATH="path/to/developer-tools/bin:$PATH"
 ```
 
+## Completions
+
+Zsh completion scripts can be found in the `/completions` directory. The `fpath` is automatically updated when sourcing
+the `rc` files (see below), so no manual configuration is needed.
+
 ## Source files
 
 Can be found in the `/rc` directory. In order to use the functions in this directory, you'll need to source them and

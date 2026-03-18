@@ -1,0 +1,9 @@
+#compdef az-pim-activate
+
+_az-pim-activate() {
+    local -a subscriptions
+    subscriptions=(${(f)"$(az account list --query '[].name' -o tsv 2>/dev/null)"})
+    _describe 'Azure subscription' subscriptions
+}
+
+_az-pim-activate "$@"

@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+
+_developer_tools_root="$(cd "$(dirname "${BASH_SOURCE[0]:-${(%):-%x}}")/.." && pwd)"
+fpath=("$_developer_tools_root/completions" $fpath)
+unset _developer_tools_root
