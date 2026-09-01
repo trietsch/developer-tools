@@ -1,0 +1,48 @@
+#!/usr/bin/env bash
+
+# Prepend a commit message with the ticket referenced in the current branch name.
+# Supports:
+#   - Jira:     ABC-123-description                 -> "ABC-123 <message>"
+#   - Linear:   feature/roa-530-review-adrs         -> "ROA-530 <message>"
+#   - DevOps:   feature/1234-description            -> "#1234 <message>"
+#   - NOJIRA:   NOJIRA-description                  -> "NOJIRA <message>"
+#
+# Add as an alias to your gitconfig:
+#   ticket = "!git-ticket"
+#
+# Usage: git ticket "My commit message"
+
+set -e
+
+if [[ "$OSTYPE" == "darwin"* ]]; then
+  SED="gsed"
+else
+  SED="sed"
+fi
+
+current_branch=$(git branch --show-current)
+
+# Respect rebase state so `git ticket` keeps working mid-rebase.
+if [[ -f .git/rebase-merge/head-name ]]; then
+  current_branch=$(< .git/rebase-merge/head-name $SED 's|refs/heads/||')
+elif [[ -f .git/rebase-apply/head-name ]]; then
+  current_branch=$(< .git/rebase-apply/head-name $SED 's|refs/heads/||')
+fi
+
+# Strip any leading namespace like `feature/`, `bugfix/`, `user/name/`, etc.
+branch_tail="${current_branch##*/}"
+
+if [[ "$branch_tail" =~ ^NOJIRA ]]; then
+  prefix="NOJIRA"
+elif [[ "$branch_tail" =~ ^([A-Za-z]{2,}-[0-9]+) ]]; then
+  # Jira / Linear style: uppercase the key.
+  prefix=$(echo "${BASH_REMATCH[1]}" | tr '[:lower:]' '[:upper:]')
+elif [[ "$branch_tail" =~ ^([0-9]+) ]]; then
+  # DevOps style: the branch tail starts with the work-item id.
+  prefix="#${BASH_REMATCH[1]}"
+else
+  echo "The current git branch does not contain a recognisable ticket reference: $current_branch" >&2
+  exit 1
+fi
+
+git commit -a -m "$prefix $*"
