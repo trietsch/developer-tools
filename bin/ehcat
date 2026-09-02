@@ -1,0 +1,11 @@
+#!/usr/bin/env bash
+# ehcat - kcat wrapper for Azure Event Hub using Azure CLI token auth
+set -euo pipefail
+
+TOKEN=$(az account get-access-token --resource https://eventhubs.azure.net/ --query accessToken -o tsv)
+
+kcat \
+  -X security.protocol=SASL_SSL \
+  -X sasl.mechanism=OAUTHBEARER \
+  -X "sasl.oauthbearer.config=token=$TOKEN" \
+  "$@"
