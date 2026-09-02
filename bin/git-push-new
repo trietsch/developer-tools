@@ -16,22 +16,22 @@ open_url() {
 extract_url_from_push_output() {
     local push_output="$1"
     local url
-    
+
     # Try GitLab/general format first
     url=$(echo "$push_output" | grep -iE '/merge_requests/|Create a pull request.*by visiting:' | awk '{ print $2 }')
-    
+
     # Try GitHub format if no URL found
     if [ -z "${url}" ]; then
         url=$(echo "$push_output" | grep -o 'https://github.com[^ ]*')
     fi
-    
+
     echo "$url"
 }
 
 create_azure_devops_pr_url() {
     local current_branch="$1"
     local remote_url=$(git remote get-url origin)
-    
+
     if [[ "$remote_url" =~ ^git@ssh.dev.azure.com:v3/(.*)$ ]]; then
         # SSH: org/project/repo
         path_part="${BASH_REMATCH[1]}"
@@ -45,7 +45,7 @@ create_azure_devops_pr_url() {
         path_part_escaped="${path_part// /%20}"
         remote_url="https://dev.azure.com/${path_part}"
     fi
-    
+
     local repo_name=$(basename "$remote_url")
     echo "${remote_url}/pullrequestcreate?sourceRef=${current_branch}&targetRef=main&sourceRepositoryId=${repo_name}&targetRepositoryId=${repo_name}"
 }

@@ -24,4 +24,3 @@ You can use the following to source all files in the `rc` directory:
 ```bash
 for f in $(find path/to/developer-tools/rc -type f -not -name "README*" | xargs -I% realpath "%"); do source $f; done
 ```
-
