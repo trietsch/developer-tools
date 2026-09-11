@@ -1,9 +1,63 @@
 #compdef az-pim-activate
 
-_az-pim-activate() {
+_az-pim-activate_subscription() {
     local -a subscriptions
     subscriptions=(${(f)"$(az account list --query '[].name' -o tsv 2>/dev/null)"})
     _describe 'Azure subscription' subscriptions
+}
+
+_az-pim-activate_assignment() {
+    local -a assignments roles groups
+    local subscription_name subscription_id principal_id scope
+
+    # Find the subscription already typed on the command line, if any.
+    local i
+    for (( i = 1; i <= ${#words[@]}; i++ )); do
+        if [[ "${words[$i]}" == "-s" || "${words[$i]}" == "--subscription" ]]; then
+            subscription_name="${words[$((i + 1))]}"
+        elif [[ "${words[$i]}" == --subscription=* ]]; then
+            subscription_name="${words[$i]#*=}"
+        fi
+    done
+
+    if [[ -z "$subscription_name" ]]; then
+        _message 'specify --subscription first to complete --assignment'
+        return
+    fi
+
+    subscription_id="$(az account list --query "[?name=='$subscription_name'].id" -o tsv 2>/dev/null)"
+    scope="/subscriptions/$subscription_id"
+
+    principal_id="$(az ad signed-in-user show -o tsv --query id 2>/dev/null)"
+    if [[ -n "$principal_id" ]]; then
+        roles=(${(f)"$(az rest \
+            --uri "https://management.azure.com$scope/providers/Microsoft.Authorization/roleEligibilitySchedules" \
+            --uri-parameters "\$filter=assignedTo('$principal_id') and atScope()" \
+                             "api-version=2020-10-01" \
+            --query "value[].properties.expandedProperties.roleDefinition.displayName" \
+            -o tsv 2>/dev/null)"})
+    fi
+
+    # PIM-for-Groups eligibility can't be queried directly here (the Graph
+    # PrivilegedAccess.Read.AzureADGroup permission isn't consented for the
+    # Azure CLI app in this tenant), so as a proxy we suggest groups that
+    # actually hold an RBAC role assignment at this subscription's scope.
+    groups=(${(f)"$(az role assignment list --scope "$scope" \
+        --query "[?principalType=='Group'].principalName" \
+        -o tsv 2>/dev/null | sort -u)"})
+
+    assignments=("${roles[@]}" "${groups[@]}")
+    _describe 'eligible role or group' assignments
+}
+
+_az-pim-activate() {
+    _arguments \
+        '(-s --subscription)'{-s,--subscription}'[Azure subscription name]:subscription:_az-pim-activate_subscription' \
+        '(-a --assignment)'{-a,--assignment}'[Eligible role or group name to activate]:assignment:_az-pim-activate_assignment' \
+        '(-r --reason)'{-r,--reason}'[Justification for the activation]:reason:' \
+        '(-d --duration)'{-d,--duration}'[Activation duration in hours]:duration:(1 2 4 8)' \
+        '--dry-run[Print the request without activating anything]' \
+        '(-h --help)'{-h,--help}'[Display help]'
 }
 
 _az-pim-activate "$@"

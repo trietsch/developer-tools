@@ -1,57 +1,202 @@
 #!/usr/bin/env bash
 
-# Check if exactly one argument is provided
-if [ "$#" -ne 1 ]; then
-    echo "Usage: $0 <Azure Subscription Name>"
+usage() {
+    echo "Usage: $0 -s|--subscription <name> -a|--assignment <role-or-group-name> [-r|--reason <text>] [-d|--duration <hours>] [--dry-run]"
+    echo ""
+    echo "Options:"
+    echo "  -s, --subscription   Azure subscription name (required)"
+    echo "  -a, --assignment     Eligible role name (e.g. Owner) or eligible group name to activate (required)"
+    echo "  -r, --reason         Justification for the activation (default: \"work\")"
+    echo "  -d, --duration       Activation duration in hours (default: 8)"
+    echo "      --dry-run        Resolve everything and print the request that would be sent, without activating anything"
+    echo "  -h, --help           Display this help message"
+    echo ""
+    echo "Example:"
+    echo "  $0 --subscription my-subscription --assignment Owner --reason \"investigating incident 123\""
+    echo "  $0 -s my-subscription -a sub-mc-apps-prd-01-owners"
     exit 1
+}
+
+subscription_name=""
+assignment=""
+reason="work"
+duration_hours=8
+dry_run=false
+
+while [ "$#" -gt 0 ]; do
+    case "$1" in
+        -s|--subscription)
+            subscription_name="$2"
+            shift 2
+            ;;
+        --subscription=*)
+            subscription_name="${1#*=}"
+            shift
+            ;;
+        -a|--assignment)
+            assignment="$2"
+            shift 2
+            ;;
+        --assignment=*)
+            assignment="${1#*=}"
+            shift
+            ;;
+        -r|--reason)
+            reason="$2"
+            shift 2
+            ;;
+        --reason=*)
+            reason="${1#*=}"
+            shift
+            ;;
+        -d|--duration)
+            duration_hours="$2"
+            shift 2
+            ;;
+        --duration=*)
+            duration_hours="${1#*=}"
+            shift
+            ;;
+        --dry-run)
+            dry_run=true
+            shift
+            ;;
+        -h|--help)
+            usage
+            ;;
+        *)
+            echo "Unknown argument: $1"
+            usage
+            ;;
+    esac
+done
+
+if [ -z "$subscription_name" ] || [ -z "$assignment" ]; then
+    echo "Error: --subscription and --assignment are required"
+    usage
 fi
 
-subscription_name="$1"
-
-subscription=$(az account list --query "[?name=='$subscription_name'].id" --output tsv)
-scope="/subscriptions/$subscription"
-roleName="Owner"
-echo "Fetching role definition id for role $roleName at scope $scope"
-roleDefinitionId=$(az role definition list --name $roleName --scope $scope --query [0].id -o tsv)
-durationHours=8
-justification="work"
-
-# get the object id of the user logged in
 echo "Fetching principal id for the signed in user"
 principalId=$(az ad signed-in-user show -o tsv --query id)
 
-# find the first matching role eligibility for this user, scope and role.
-# There might be multiple, but it probably does not matter which one we activate
-echo "Fetching role eligibility schedule id for principal $principalId and role $roleDefinitionId"
-eligibilityScheduleId=$(az rest \
-  --uri "https://management.azure.com$scope/providers/Microsoft.Authorization/roleEligibilitySchedules" \
-  --uri-parameters "\$filter=assignedTo('$principalId') and atScope() and roleDefinitionId eq '$roleDefinitionId'" \
-                   "api-version=2020-10-01" \
-  --query value[0].id \
-  -o tsv)
+subscription=$(az account list --query "[?name=='$subscription_name'].id" --output tsv)
+scope="/subscriptions/$subscription"
 
-uuid=$(uuidgen | awk '{print tolower($0)}')
+echo "Checking whether '$assignment' is an eligible role at scope $scope"
+roleDefinitionId=$(az role definition list --name "$assignment" --scope "$scope" --query "[0].id" -o tsv)
 
-echo "Activating role $roleDefinitionId for principal $principalId with eligibility schedule $eligibilityScheduleId"
-# activate role
-az rest \
-    --method PUT \
-    --uri "https://management.azure.com$scope/providers/Microsoft.Authorization/roleAssignmentScheduleRequests/${uuid}?api-version=2020-10-01" \
-    --body "
-        {
-            \"properties\": {
-                \"principalId\": \"$principalId\",
-                \"roleDefinitionId\": \"$roleDefinitionId\",
-                \"requestType\": \"SelfActivate\",
-                \"linkedRoleEligibilityScheduleId\": \"$eligibilityScheduleId\",
-                \"justification\": \"$justification\",
-                \"scheduleInfo\": {
-                    \"expiration\": {
-                        \"type\": \"AfterDuration\",
-                        \"duration\": \"PT${durationHours}H\"
-                    }
-                }
+if [ -n "$roleDefinitionId" ]; then
+    # Role-based eligible assignment (ARM PIM).
+    echo "Fetching role eligibility schedule id for principal $principalId and role $roleDefinitionId"
+    eligibilityScheduleId=$(az rest \
+        --uri "https://management.azure.com$scope/providers/Microsoft.Authorization/roleEligibilitySchedules" \
+        --uri-parameters "\$filter=assignedTo('$principalId') and atScope() and roleDefinitionId eq '$roleDefinitionId'" \
+                         "api-version=2020-10-01" \
+        --query value[0].id \
+        -o tsv)
+
+    if [ -z "$eligibilityScheduleId" ]; then
+        echo "Error: no eligible role assignment found for role '$assignment' at scope $scope"
+        exit 1
+    fi
+
+    uuid=$(uuidgen | awk '{print tolower($0)}')
+    uri="https://management.azure.com$scope/providers/Microsoft.Authorization/roleAssignmentScheduleRequests/${uuid}?api-version=2020-10-01"
+    body=$(cat <<EOF
+{
+    "properties": {
+        "principalId": "$principalId",
+        "roleDefinitionId": "$roleDefinitionId",
+        "requestType": "SelfActivate",
+        "linkedRoleEligibilityScheduleId": "$eligibilityScheduleId",
+        "justification": "$reason",
+        "scheduleInfo": {
+            "expiration": {
+                "type": "AfterDuration",
+                "duration": "PT${duration_hours}H"
             }
-        }" 2>/dev/null
+        }
+    }
+}
+EOF
+)
 
-echo "Role '$roleName' activated for $durationHours hours"
+    if [ "$dry_run" = true ]; then
+        echo "Dry run — would send:"
+        echo "PUT $uri"
+        echo "$body"
+        exit 0
+    fi
+
+    echo "Activating role $roleDefinitionId for principal $principalId with eligibility schedule $eligibilityScheduleId"
+    az rest --method PUT --uri "$uri" --body "$body" 2>/dev/null
+
+    echo "Role '$assignment' activated for $duration_hours hours"
+    exit 0
+fi
+
+echo "'$assignment' is not an eligible role at scope $scope, checking eligible groups"
+groupId=$(az ad group show --group "$assignment" --query id -o tsv 2>/dev/null)
+
+if [ -z "$groupId" ]; then
+    echo "Error: no eligible role or group named '$assignment' found (checked role eligibility at $scope and group '$assignment')"
+    exit 1
+fi
+
+# Group-based eligible assignment (PIM for Groups, via Microsoft Graph).
+echo "Fetching group eligibility schedule instance for principal $principalId and group $groupId"
+eligibility=$(az rest \
+    --uri "https://graph.microsoft.com/v1.0/identityGovernance/privilegedAccess/group/eligibilityScheduleInstances" \
+    --uri-parameters "\$filter=principalId eq '$principalId' and groupId eq '$groupId'" \
+    --query "value[0]" \
+    -o json)
+
+accessId=$(echo "$eligibility" | jq -r '.accessId // empty')
+roleDefinitionId=$(echo "$eligibility" | jq -r '.roleDefinitionId // empty')
+
+if [ -z "$accessId" ]; then
+    echo "Error: no eligible group assignment found for group '$assignment'"
+    exit 1
+fi
+
+uri="https://graph.microsoft.com/v1.0/identityGovernance/privilegedAccess/group/assignmentScheduleRequests"
+body=$(jq -n \
+    --arg principalId "$principalId" \
+    --arg accessId "$accessId" \
+    --arg groupId "$groupId" \
+    --arg roleDefinitionId "$roleDefinitionId" \
+    --arg justification "$reason" \
+    --arg duration "PT${duration_hours}H" \
+    '{
+        action: "SelfActivate",
+        directoryScopeId: null,
+        principalId: $principalId,
+        accessId: $accessId,
+        groupId: $groupId,
+        isValidationOnly: false,
+        justification: $justification,
+        roleDefinitionId: (if ($roleDefinitionId | length) > 0 then $roleDefinitionId else null end),
+        scheduleInfo: {
+            startDateTime: null,
+            expiration: {
+                type: "AfterDuration",
+                duration: $duration
+            }
+        },
+        ticketInfo: {
+            ticketNumber: "",
+            ticketSystem: ""
+        }
+    }')
+
+if [ "$dry_run" = true ]; then
+    echo "Dry run — would send:"
+    echo "POST $uri"
+    echo "$body"
+    exit 0
+fi
+
+echo "Activating group $groupId ($accessId) for principal $principalId"
+az rest --method POST --uri "$uri" --body "$body" 2>/dev/null
+
+echo "Group '$assignment' ($accessId) activated for $duration_hours hours"
