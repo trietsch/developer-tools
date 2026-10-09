@@ -1,11 +1,97 @@
 #!/usr/bin/env bash
-# ehcat - kcat wrapper for Azure Event Hub using Azure CLI token auth
+# ehcat - kcat wrapper for Azure Event Hubs, authenticating with your `az login` identity
+#
+# Usage: ehcat --subscription <subscription> [--namespace <namespace>] [kcat args...]
+# Example: ehcat --subscription my-subscription -t my-event-hub -C -o end
+#
+# librdkafka (kcat) cannot take a static token, so a local token endpoint serves a fresh
+# `az account get-access-token` result whenever librdkafka requests or refreshes its token.
 set -euo pipefail
 
-TOKEN=$(az account get-access-token --resource https://eventhubs.azure.net/ --query accessToken -o tsv)
+usage() {
+  echo "Usage: $(basename "$0") --subscription <subscription> [--namespace <namespace>] [kcat args...]" >&2
+  exit 1
+}
 
-kcat \
-  -X security.protocol=SASL_SSL \
-  -X sasl.mechanism=OAUTHBEARER \
-  -X "sasl.oauthbearer.config=token=$TOKEN" \
-  "$@"
+subscription=""
+namespace=""
+kcat_args=()
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --subscription) subscription="${2:-}"; shift 2 || usage ;;
+    --subscription=*) subscription="${1#*=}"; shift ;;
+    --namespace) namespace="${2:-}"; shift 2 || usage ;;
+    --namespace=*) namespace="${1#*=}"; shift ;;
+    -F)
+      echo "ehcat provides its own config file (-F); use -X <property>=<value> for extra settings" >&2
+      exit 1
+      ;;
+    *) kcat_args+=("$1"); shift ;;
+  esac
+done
+[[ -z "$subscription" ]] && usage
+
+if [[ -z "$namespace" ]]; then
+  namespaces=()
+  while IFS= read -r line; do
+    [[ -n "$line" ]] && namespaces+=("$line")
+  done < <(az eventhubs namespace list --subscription "$subscription" --query '[].name' -o tsv)
+  if [[ ${#namespaces[@]} -ne 1 ]]; then
+    echo "Expected exactly one Event Hubs namespace in '$subscription', found ${#namespaces[@]}: ${namespaces[*]:-}" >&2
+    echo "Pass one explicitly with --namespace <namespace>" >&2
+    exit 1
+  fi
+  namespace="${namespaces[0]}"
+fi
+
+host="${namespace}.servicebus.windows.net"
+port="${KCAT_AZ_TOKEN_PORT:-18765}"
+work_dir="$(mktemp -d)"
+fifo="${work_dir}/response"
+properties="${work_dir}/kcat.properties"
+server_pid=""
+
+cleanup() {
+  [[ -n "$server_pid" ]] && kill "$server_pid" 2>/dev/null || true
+  pkill -f "nc -l 127.0.0.1 ${port}" 2>/dev/null || true
+  rm -rf "$work_dir"
+}
+trap cleanup EXIT INT TERM
+
+get_token() {
+  az account get-access-token --subscription "$subscription" --scope "https://${host}/.default" --query accessToken -o tsv
+}
+
+token_response() {
+  local body
+  body="{\"access_token\":\"$(get_token)\",\"token_type\":\"Bearer\"}"
+  printf 'HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: %d\r\nConnection: close\r\n\r\n%s' \
+    "${#body}" "$body"
+}
+
+serve_tokens() {
+  mkfifo "$fifo"
+  while true; do
+    nc -l 127.0.0.1 "$port" <"$fifo" | {
+      read -r _request_line
+      token_response
+    } >"$fifo" || true
+  done
+}
+
+get_token >/dev/null
+
+cat >"$properties" <<EOF
+metadata.broker.list=${host}:9093
+security.protocol=sasl_ssl
+sasl.mechanisms=OAUTHBEARER
+sasl.oauthbearer.method=oidc
+sasl.oauthbearer.client.id=unused
+sasl.oauthbearer.client.secret=unused
+sasl.oauthbearer.token.endpoint.url=http://127.0.0.1:${port}/token
+EOF
+
+serve_tokens &
+server_pid=$!
+
+kcat -F "$properties" "${kcat_args[@]}"

@@ -1,0 +1,66 @@
+#compdef ehcat
+
+_ehcat_subscriptions() {
+    local -a subscriptions
+    subscriptions=(${(f)"$(az account list --query '[].name' -o tsv 2>/dev/null)"})
+    _describe 'Azure subscription' subscriptions
+}
+
+_ehcat_option_value() {
+    local option=$1 index=${words[(I)$1]}
+    if (( index > 0 )); then
+        print -r -- ${(Q)words[index + 1]}
+    else
+        print -r -- ${(Q)${${words[(r)$option=*]}#*=}}
+    fi
+}
+
+_ehcat_namespaces() {
+    local subscription=$(_ehcat_option_value --subscription)
+    [[ -z $subscription ]] && return 1
+    local -a namespaces
+    namespaces=(${(f)"$(az eventhubs namespace list --subscription $subscription --query '[].name' -o tsv 2>/dev/null)"})
+    _describe 'Event Hubs namespace' namespaces
+}
+
+_ehcat_event_hubs() {
+    local subscription=$(_ehcat_option_value --subscription)
+    local namespace=$(_ehcat_option_value --namespace)
+    [[ -z $subscription ]] && return 1
+    local query="[?name=='$namespace'].[name,resourceGroup]"
+    [[ -z $namespace ]] && query='[].[name,resourceGroup]'
+    local -a event_hubs
+    local name resource_group
+    az eventhubs namespace list --subscription $subscription --query $query -o tsv 2>/dev/null |
+        while IFS=$'\t' read -r name resource_group; do
+            event_hubs+=(${(f)"$(az eventhubs eventhub list --subscription $subscription \
+                --namespace-name $name --resource-group $resource_group --query '[].name' -o tsv 2>/dev/null)"})
+        done
+    _describe 'event hub' event_hubs
+}
+
+_ehcat() {
+    _arguments \
+        '--subscription=[Azure subscription]:subscription:_ehcat_subscriptions' \
+        '--namespace=[Event Hubs namespace (default: the only one in the subscription)]:namespace:_ehcat_namespaces' \
+        '-t[event hub (topic)]:event hub:_ehcat_event_hubs' \
+        '(-P -L -Q)-C[consumer mode]' \
+        '(-C -L -Q)-P[producer mode]' \
+        '(-C -P -Q)-L[metadata list mode]' \
+        '(-C -P -L)-Q[query mode]' \
+        '-G[consumer group]:consumer group:' \
+        '-p[partition]:partition:' \
+        '-o[start offset]:offset:(beginning end stored)' \
+        '-c[exit after consuming this many messages]:count:' \
+        '-e[exit after the last message is received]' \
+        '-f[output format string]:format:' \
+        '-J[output with JSON envelope]' \
+        '-K[key delimiter]:delimiter:' \
+        '-q[quiet mode]' \
+        '-u[unbuffered output]' \
+        '-X[librdkafka property]:property=value:' \
+        '-d[librdkafka debug contexts]:contexts:' \
+        '*: :_files'
+}
+
+_ehcat "$@"
