@@ -31,18 +31,71 @@ while [[ $# -gt 0 ]]; do
 done
 [[ -z "$subscription" ]] && usage
 
-if [[ -z "$namespace" ]]; then
-  namespaces=()
-  while IFS= read -r line; do
-    [[ -n "$line" ]] && namespaces+=("$line")
-  done < <(az eventhubs namespace list --subscription "$subscription" --query '[].name' -o tsv)
-  if [[ ${#namespaces[@]} -ne 1 ]]; then
-    echo "Expected exactly one Event Hubs namespace in '$subscription', found ${#namespaces[@]}: ${namespaces[*]:-}" >&2
-    echo "Pass one explicitly with --namespace <namespace>" >&2
-    exit 1
-  fi
-  namespace="${namespaces[0]}"
+namespace_query='[].[name,id]'
+[[ -n "$namespace" ]] && namespace_query="[?name=='${namespace}'].[name,id]"
+namespaces=()
+namespace_ids=()
+while IFS=$'\t' read -r name id; do
+  [[ -n "$name" ]] && namespaces+=("$name") && namespace_ids+=("$id")
+done < <(az eventhubs namespace list --subscription "$subscription" --query "$namespace_query" -o tsv)
+if [[ ${#namespaces[@]} -ne 1 ]]; then
+  echo "Expected exactly one Event Hubs namespace${namespace:+ named '$namespace'} in '$subscription', found ${#namespaces[@]}: ${namespaces[*]:-}" >&2
+  [[ -z "$namespace" ]] && echo "Pass one explicitly with --namespace <namespace>" >&2
+  exit 1
 fi
+namespace="${namespaces[0]}"
+namespace_id="${namespace_ids[0]}"
+
+kcat_arg() {
+  local flag="$1" i
+  for ((i = 0; i < ${#kcat_args[@]}; i++)); do
+    [[ "${kcat_args[i]}" == "$flag" ]] && echo "${kcat_args[i + 1]:-}" && return
+  done
+  return 0
+}
+
+has_kcat_flag() {
+  local flag="$1" arg
+  for arg in "${kcat_args[@]}"; do
+    [[ "$arg" == "$flag" ]] && return 0
+  done
+  return 1
+}
+
+check_permissions() {
+  local event_hub operation scope data_actions pattern
+  event_hub="$(kcat_arg -t)"
+  operation="receive"
+  has_kcat_flag -P && operation="send"
+  scope="${namespace_id}${event_hub:+/eventhubs/${event_hub}}"
+  local required_action="Microsoft.EventHub/namespaces/messages/${operation}/action"
+
+  if ! data_actions="$(az rest --method get \
+    --uri "https://management.azure.com${scope}/providers/Microsoft.Authorization/permissions?api-version=2022-04-01" \
+    --query 'value[].dataActions[]' -o tsv 2>/dev/null)"; then
+    echo "Warning: could not verify your permissions on ${scope}, continuing" >&2
+    return
+  fi
+
+  shopt -s nocasematch
+  while IFS= read -r pattern; do
+    # shellcheck disable=SC2053 # data actions may contain wildcards, so match as a glob
+    if [[ -n "$pattern" && "$required_action" == $pattern ]]; then
+      shopt -u nocasematch
+      return
+    fi
+  done <<<"$data_actions"
+  shopt -u nocasematch
+
+  local role="Azure Event Hubs Data Receiver"
+  local preposition="from"
+  [[ "$operation" == "send" ]] && role="Azure Event Hubs Data Sender" && preposition="to"
+  echo "Permission denied: you cannot ${operation} ${preposition} ${event_hub:+event hub '${event_hub}' in }namespace '${namespace}'" >&2
+  echo "Missing data action ${required_action}; request (or activate via PIM) the '${role}' role" >&2
+  exit 1
+}
+
+check_permissions
 
 host="${namespace}.servicebus.windows.net"
 port="${KCAT_AZ_TOKEN_PORT:-18765}"
